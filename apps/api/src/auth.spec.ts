@@ -105,4 +105,88 @@ describe('ApiAuthGuard', () => {
       ).allow,
     ).toBe(false)
   })
+
+  it('controls pipeline and campaign administration by role', () => {
+    expect(
+      guard.authorize(
+        { actor: { id: 'u1', email: 'a@b.c', roles: ['member'] } },
+        'pipeline',
+        'write',
+      ).allow,
+    ).toBe(false)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u2', email: 'a@b.c', roles: ['manager'] } },
+        'pipeline',
+        'write',
+      ).allow,
+    ).toBe(false)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u3', email: 'a@b.c', roles: ['admin'] } },
+        'pipeline',
+        'write',
+      ).allow,
+    ).toBe(true)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u4', email: 'a@b.c', roles: ['manager'] } },
+        'campaign',
+        'delete',
+      ).allow,
+    ).toBe(true)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u5', email: 'a@b.c', roles: ['member'] } },
+        'campaign',
+        'write',
+      ).allow,
+    ).toBe(false)
+  })
+
+  it('grants opportunity, follow-up, and analytics access by role', () => {
+    expect(
+      guard.authorize(
+        { actor: { id: 'u1', email: 'a@b.c', roles: ['member'] } },
+        'opportunity',
+        'write',
+      ).allow,
+    ).toBe(false)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u2', email: 'a@b.c', roles: ['admin'] } },
+        'opportunity',
+        'write',
+      ).allow,
+    ).toBe(true)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u3', email: 'a@b.c', roles: ['member'] } },
+        'follow-up',
+        'write',
+      ).allow,
+    ).toBe(true)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u4', email: 'a@b.c', roles: ['member'] } },
+        'analytics',
+        'read',
+      ).allow,
+    ).toBe(true)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u5', email: 'a@b.c', roles: ['member'] } },
+        'pipeline',
+        'delete',
+      ).allow,
+    ).toBe(false)
+  })
 })

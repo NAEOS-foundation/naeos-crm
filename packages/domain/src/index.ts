@@ -6,6 +6,12 @@ export type TaskStatus = 'OPEN' | 'IN_PROGRESS' | 'DONE'
 export type UserRole = 'ADMIN' | 'MANAGER' | 'MEMBER'
 export type UserStatus = 'ACTIVE' | 'INACTIVE'
 export type AuditResult = 'SUCCESS' | 'FAILURE'
+export type OpportunityStage = 'NEW' | 'QUALIFIED' | 'PROPOSAL' | 'NEGOTIATION' | 'WON' | 'LOST'
+export type CampaignType = 'OUTBOUND' | 'INBOUND' | 'NURTURE' | 'EVENT' | 'PARTNER'
+export type CampaignStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED'
+export type CampaignStepActionType = 'EMAIL' | 'CALL' | 'TASK' | 'WAIT'
+export type CampaignStepStatus = 'PENDING' | 'READY' | 'EXECUTING' | 'DONE' | 'SKIPPED'
+export type FollowUpStatus = 'OPEN' | 'DONE' | 'DEFERRED' | 'CANCELLED'
 
 export interface User {
   id: string
@@ -99,6 +105,90 @@ export interface DashboardSummary {
   tasks: { total: number; open: number; overdue: number }
 }
 
+export interface PipelineStage {
+  id: string
+  stage: OpportunityStage
+  name: string
+  sequence: number
+  probability: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface Opportunity {
+  id: string
+  companyId: string
+  name: string
+  stage: OpportunityStage
+  amount: number
+  closeDate?: Date | null
+  ownerId?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface Campaign {
+  id: string
+  name: string
+  type: CampaignType
+  status: CampaignStatus
+  ownerId?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface CampaignStep {
+  id: string
+  campaignId: string
+  sequence: number
+  actionType: CampaignStepActionType
+  subject?: string | null
+  scheduledAt?: Date | null
+  status: CampaignStepStatus
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface FollowUp {
+  id: string
+  activityId: string
+  dueAt: Date
+  status: FollowUpStatus
+  ownerId?: string
+  notes?: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface PipelineStageBreakdown {
+  stage: OpportunityStage
+  count: number
+  amount: number
+  weightedAmount: number
+}
+
+export interface PipelineAnalyticsSummary {
+  totalValue: number
+  weightedValue: number
+  openCount: number
+  wonCount: number
+  lostCount: number
+  avgDealSize: number
+  byStage: PipelineStageBreakdown[]
+}
+
+export interface CampaignAnalyticsSummary {
+  total: number
+  byStatus: Record<CampaignStatus, number>
+  stepsPrepared: number
+}
+
+export interface FollowUpAnalyticsSummary {
+  openCount: number
+  overdueCount: number
+  dueTodayCount: number
+}
+
 export interface PaginatedResponse<T> {
   data: T[]
   meta: {
@@ -174,6 +264,58 @@ export interface TaskRepository {
   create(input: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task>
   update(id: string, input: Partial<Task>): Promise<Task | null>
   delete(id: string): Promise<boolean>
+}
+
+export interface PipelineStageRepository {
+  findById(id: string): Promise<PipelineStage | null>
+  list(): Promise<PipelineStage[]>
+  create(input: Omit<PipelineStage, 'id' | 'createdAt' | 'updatedAt'>): Promise<PipelineStage>
+  update(id: string, input: Partial<PipelineStage>): Promise<PipelineStage | null>
+  delete(id: string): Promise<boolean>
+  reorder(orderedIds: string[]): Promise<PipelineStage[]>
+}
+
+export interface OpportunityRepository {
+  findById(id: string): Promise<Opportunity | null>
+  list(filters?: { stage?: OpportunityStage; companyId?: string }): Promise<Opportunity[]>
+  listByCompany(companyId: string): Promise<Opportunity[]>
+  listByOwner(ownerId: string): Promise<Opportunity[]>
+  create(input: Omit<Opportunity, 'id' | 'createdAt' | 'updatedAt'>): Promise<Opportunity>
+  update(id: string, input: Partial<Opportunity>): Promise<Opportunity | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface CampaignRepository {
+  findById(id: string): Promise<Campaign | null>
+  list(): Promise<Campaign[]>
+  listByOwner(ownerId: string): Promise<Campaign[]>
+  create(input: Omit<Campaign, 'id' | 'createdAt' | 'updatedAt'>): Promise<Campaign>
+  update(id: string, input: Partial<Campaign>): Promise<Campaign | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface CampaignStepRepository {
+  findById(id: string): Promise<CampaignStep | null>
+  listByCampaign(campaignId: string): Promise<CampaignStep[]>
+  create(input: Omit<CampaignStep, 'id' | 'createdAt' | 'updatedAt'>): Promise<CampaignStep>
+  update(id: string, input: Partial<CampaignStep>): Promise<CampaignStep | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface FollowUpRepository {
+  findById(id: string): Promise<FollowUp | null>
+  list(status?: FollowUpStatus): Promise<FollowUp[]>
+  listByActivity(activityId: string): Promise<FollowUp[]>
+  listByOwner(ownerId: string): Promise<FollowUp[]>
+  create(input: Omit<FollowUp, 'id' | 'createdAt' | 'updatedAt'>): Promise<FollowUp>
+  update(id: string, input: Partial<FollowUp>): Promise<FollowUp | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface AnalyticsRepository {
+  getPipelineAnalytics(): Promise<PipelineAnalyticsSummary>
+  getCampaignAnalytics(): Promise<CampaignAnalyticsSummary>
+  getFollowUpAnalytics(): Promise<FollowUpAnalyticsSummary>
 }
 
 export interface DashboardRepository {

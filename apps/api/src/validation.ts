@@ -99,3 +99,82 @@ export const auditQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
 })
+
+export const createPipelineStageSchema = z.object({
+  stage: z.enum(['NEW', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST']),
+  name: z.string().min(1),
+  sequence: z.number().int().min(0),
+  probability: z.number().int().min(0).max(100).default(20),
+})
+
+export const updatePipelineStageSchema = createPipelineStageSchema.partial().strict()
+
+export const reorderPipelineStagesSchema = z.object({
+  orderedIds: z.array(z.string().min(1)).min(1),
+})
+
+export const createOpportunitySchema = z.object({
+  companyId: z.string().min(1),
+  name: z.string().min(1),
+  stage: z.enum(['NEW', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST']).default('NEW'),
+  amount: z.number().min(0).default(0),
+  closeDate: nullableDate,
+  ownerId: z.string().optional(),
+})
+
+export const updateOpportunitySchema = createOpportunitySchema.partial().strict()
+
+export const opportunityQuerySchema = z.object({
+  stage: z.enum(['NEW', 'QUALIFIED', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST']).optional(),
+  companyId: z.string().optional(),
+  ownerId: z.string().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const createCampaignSchema = z.object({
+  name: z.string().min(1),
+  type: z.enum(['OUTBOUND', 'INBOUND', 'NURTURE', 'EVENT', 'PARTNER']).default('OUTBOUND'),
+  status: z.enum(['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED', 'ARCHIVED']).default('DRAFT'),
+  ownerId: z.string().optional(),
+})
+
+export const updateCampaignSchema = createCampaignSchema.partial().strict()
+
+export const campaignQuerySchema = z.object({
+  status: z.enum(['DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED', 'ARCHIVED']).optional(),
+  type: z.enum(['OUTBOUND', 'INBOUND', 'NURTURE', 'EVENT', 'PARTNER']).optional(),
+  ownerId: z.string().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const createCampaignStepSchema = z.object({
+  campaignId: z.string().min(1),
+  sequence: z.number().int().min(0),
+  actionType: z.enum(['EMAIL', 'CALL', 'TASK', 'WAIT']),
+  subject: z.string().optional(),
+  scheduledAt: nullableDate,
+  status: z.enum(['PENDING', 'READY', 'EXECUTING', 'DONE', 'SKIPPED']).default('PENDING'),
+})
+
+export const updateCampaignStepSchema = createCampaignStepSchema.partial().strict()
+
+export const createCampaignStepNestedSchema = createCampaignStepSchema.omit({ campaignId: true })
+
+export const createFollowUpSchema = z.object({
+  activityId: z.string().min(1),
+  dueAt: nonNullDate,
+  status: z.enum(['OPEN', 'DONE', 'DEFERRED', 'CANCELLED']).default('OPEN'),
+  ownerId: z.string().optional(),
+  notes: z.string().optional(),
+})
+
+export const updateFollowUpSchema = createFollowUpSchema.partial().strict()
+
+export const followUpQuerySchema = z.object({
+  status: z.enum(['OPEN', 'DONE', 'DEFERRED', 'CANCELLED']).optional(),
+  ownerId: z.string().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})

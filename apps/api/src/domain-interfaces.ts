@@ -1,9 +1,17 @@
 import type {
   Activity,
+  Campaign,
+  CampaignAnalyticsSummary,
+  CampaignStep,
   Company,
   Contact,
   DashboardSummary,
+  FollowUp,
+  FollowUpAnalyticsSummary,
   Lead,
+  Opportunity,
+  PipelineAnalyticsSummary,
+  PipelineStage,
   Task,
   User,
 } from '@naeos-crm/domain'
@@ -65,6 +73,64 @@ export interface TaskReadPort {
   create(input: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task>
   update(id: string, input: Partial<Task>): Promise<Task | null>
   delete(id: string): Promise<boolean>
+}
+
+export interface PipelineStageReadPort {
+  findById(id: string): Promise<PipelineStage | null>
+  list(params?: PageQuery): Promise<{ data: PipelineStage[]; total: number }>
+  create(input: Omit<PipelineStage, 'id' | 'createdAt' | 'updatedAt'>): Promise<PipelineStage>
+  update(id: string, input: Partial<PipelineStage>): Promise<PipelineStage | null>
+  delete(id: string): Promise<boolean>
+  reorder(orderedIds: string[]): Promise<PipelineStage[]>
+}
+
+export interface OpportunityReadPort {
+  findById(id: string): Promise<Opportunity | null>
+  list(
+    params?: { stage?: Opportunity['stage']; companyId?: string; ownerId?: string } & PageQuery,
+  ): Promise<{ data: Opportunity[]; total: number }>
+  listByCompany(companyId: string, params?: PageQuery): Promise<{ data: Opportunity[]; total: number }>
+  listByOwner(ownerId: string, params?: PageQuery): Promise<{ data: Opportunity[]; total: number }>
+  create(input: Omit<Opportunity, 'id' | 'createdAt' | 'updatedAt'>): Promise<Opportunity>
+  update(id: string, input: Partial<Opportunity>): Promise<Opportunity | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface CampaignReadPort {
+  findById(id: string): Promise<Campaign | null>
+  list(
+    params?: { status?: Campaign['status']; type?: Campaign['type']; ownerId?: string } & PageQuery,
+  ): Promise<{ data: Campaign[]; total: number }>
+  listByOwner(ownerId: string, params?: PageQuery): Promise<{ data: Campaign[]; total: number }>
+  create(input: Omit<Campaign, 'id' | 'createdAt' | 'updatedAt'>): Promise<Campaign>
+  update(id: string, input: Partial<Campaign>): Promise<Campaign | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface CampaignStepReadPort {
+  findById(id: string): Promise<CampaignStep | null>
+  listByCampaign(campaignId: string, params?: PageQuery): Promise<{ data: CampaignStep[]; total: number }>
+  create(input: Omit<CampaignStep, 'id' | 'createdAt' | 'updatedAt'>): Promise<CampaignStep>
+  update(id: string, input: Partial<CampaignStep>): Promise<CampaignStep | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface FollowUpReadPort {
+  findById(id: string): Promise<FollowUp | null>
+  list(
+    params?: { status?: FollowUp['status']; ownerId?: string } & PageQuery,
+  ): Promise<{ data: FollowUp[]; total: number }>
+  listByActivity(activityId: string, params?: PageQuery): Promise<{ data: FollowUp[]; total: number }>
+  listByOwner(ownerId: string, params?: PageQuery): Promise<{ data: FollowUp[]; total: number }>
+  create(input: Omit<FollowUp, 'id' | 'createdAt' | 'updatedAt'>): Promise<FollowUp>
+  update(id: string, input: Partial<FollowUp>): Promise<FollowUp | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface PipelineAnalyticsReadPort {
+  getPipelineAnalytics(): Promise<PipelineAnalyticsSummary>
+  getCampaignAnalytics(): Promise<CampaignAnalyticsSummary>
+  getFollowUpAnalytics(): Promise<FollowUpAnalyticsSummary>
 }
 
 export interface DashboardReadPort {

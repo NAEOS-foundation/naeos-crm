@@ -11,6 +11,11 @@ import { ActivitiesPage } from './pages/ActivitiesPage'
 import { TasksPage } from './pages/TasksPage'
 import { UsersPage } from './pages/UsersPage'
 import { AuditPage } from './pages/AuditPage'
+import { OpportunitiesPage } from './pages/OpportunitiesPage'
+import { PipelinePage } from './pages/PipelinePage'
+import { CampaignsPage } from './pages/CampaignsPage'
+import { FollowUpsPage } from './pages/FollowUpsPage'
+import { AnalyticsPage } from './pages/AnalyticsPage'
 
 interface NavItem {
   to: string
@@ -25,6 +30,11 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/companies', label: 'Companies', resource: 'company', action: 'read' },
   { to: '/contacts', label: 'Contacts', resource: 'contact', action: 'read' },
   { to: '/leads', label: 'Leads', resource: 'lead', action: 'read' },
+  { to: '/opportunities', label: 'Opportunities', resource: 'opportunity', action: 'read' },
+  { to: '/pipeline', label: 'Pipeline', resource: 'pipeline', action: 'read' },
+  { to: '/campaigns', label: 'Campaigns', resource: 'campaign', action: 'read' },
+  { to: '/follow-ups', label: 'Follow-ups', resource: 'follow-up', action: 'read' },
+  { to: '/analytics', label: 'Analytics', resource: 'analytics', action: 'read' },
   { to: '/activities', label: 'Activities', resource: 'activity', action: 'read' },
   { to: '/tasks', label: 'Tasks', resource: 'task', action: 'read' },
   { to: '/users', label: 'Users', resource: 'user', action: 'read' },
@@ -94,6 +104,11 @@ export function App() {
           <Route path="/companies" element={<CompaniesPage />} />
           <Route path="/contacts" element={<ContactsPage />} />
           <Route path="/leads" element={<LeadsPage />} />
+          <Route path="/opportunities" element={<OpportunitiesPage />} />
+          <Route path="/pipeline" element={<PipelinePage />} />
+          <Route path="/campaigns" element={<CampaignsPage />} />
+          <Route path="/follow-ups" element={<FollowUpsPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/activities" element={<ActivitiesPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route
