@@ -4,7 +4,8 @@
 
 - Phase 0 (architecture foundation) is delivered via `docs/` (architecture, domain model, security model, audit model, API surface, ADRs).
 - Phase 1 (foundation) is delivered and open as PR #1: full-stack monorepo with auth, RBAC, CRUD + audit, dashboard, and a React web app.
-- Phases 2–6 remain future work per the ordering below.
+- Phase 2 (pipeline and campaigns) is complete: opportunities, pipeline stages, campaigns and sequences, follow-ups, analytics, RBAC, audit, and web UI.
+- Phases 3–6 remain future work per the ordering below.
 
 ## Phase 0 — Architecture foundation
 
@@ -47,6 +48,18 @@ Complete and open as PR #1. The implementation includes the API (`@naeos-crm/api
 
 ## Phase 2 — Pipeline and campaigns
 
+### Status
+
+Complete. Phase 2 adds the revenue pipeline and campaign/sequence layer on top of the Phase 1 foundation:
+
+- Prisma models and migration for pipeline stages, opportunities, campaigns, campaign steps, and follow-ups (see `docs/adr/ADR-006-campaign-modeling.md`).
+- Repository ports, facades, validation, RBAC (`opportunity`, `pipeline`, `campaign`, `follow-up`, `analytics`), and REST routes in `@naeos-crm/api`.
+- Analytics endpoints for pipeline, campaigns, and follow-ups.
+- React web pages for Opportunities, Pipeline, Campaigns, Follow-ups, and Analytics with role-aware navigation.
+- Seed data for default pipeline stages, opportunities, a campaign with steps, and a follow-up.
+- Tests covering service-layer facades, authorization policy, and API integration (Phase 2 suites).
+- `opportunity.stage-changed` audit event emitted whenever an opportunity moves between stages.
+
 ### Scope
 
 - opportunities
@@ -58,7 +71,7 @@ Complete and open as PR #1. The implementation includes the API (`@naeos-crm/api
 
 ### Notes
 
-The pipeline and campaign layer should evolve from the same domain boundaries without introducing premature integrations.
+The pipeline and campaign layer evolve from the same domain boundaries without introducing premature integrations. Sequence execution/automation (running steps against contacts) is intentionally deferred to a later phase; only configuration and orchestration data are modeled now.
 
 ## Phase 3 — Ecosystem
 

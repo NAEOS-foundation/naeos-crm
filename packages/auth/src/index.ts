@@ -21,7 +21,7 @@ export interface AuthorizationService {
   ): AuthorizationDecision
 }
 
-const POLICY_VERSION = '2026.09.14'
+const POLICY_VERSION = '2026.09.15'
 
 type ResourceAction = `${string}:${string}`
 
@@ -45,6 +45,19 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<ResourceAction>> = {
     'task:read',
     'task:write',
     'task:delete',
+    'opportunity:read',
+    'opportunity:write',
+    'opportunity:delete',
+    'pipeline:read',
+    'pipeline:write',
+    'pipeline:delete',
+    'campaign:read',
+    'campaign:write',
+    'campaign:delete',
+    'follow-up:read',
+    'follow-up:write',
+    'follow-up:delete',
+    'analytics:read',
     'audit:read',
     'dashboard:read',
   ]),
@@ -64,6 +77,17 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<ResourceAction>> = {
     'task:read',
     'task:write',
     'task:delete',
+    'opportunity:read',
+    'opportunity:write',
+    'opportunity:delete',
+    'pipeline:read',
+    'campaign:read',
+    'campaign:write',
+    'campaign:delete',
+    'follow-up:read',
+    'follow-up:write',
+    'follow-up:delete',
+    'analytics:read',
     'audit:read',
     'dashboard:read',
   ]),
@@ -76,6 +100,12 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<ResourceAction>> = {
     'activity:write',
     'task:read',
     'task:write',
+    'opportunity:read',
+    'pipeline:read',
+    'campaign:read',
+    'follow-up:read',
+    'follow-up:write',
+    'analytics:read',
     'dashboard:read',
   ]),
 }

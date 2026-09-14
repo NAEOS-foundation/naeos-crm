@@ -356,3 +356,206 @@ describe('Phase 1 API integration', () => {
     })
   })
 })
+
+describe('Phase 2 API integration', () => {
+  let app: Express
+
+  beforeAll(() => {
+    app = createApp()
+  })
+
+  describe('Pipeline stages', () => {
+    it('lists seeded pipeline stages', async () => {
+      const response = await request(app).get('/api/v1/pipeline-stages').set(admin)
+      expect(response.status).toBe(200)
+      expect(Array.isArray(response.body.data)).toBe(true)
+      expect(response.body.data.length).toBeGreaterThan(0)
+    })
+
+    it('blocks members from creating pipeline stages', async () => {
+      const response = await request(app)
+        .post('/api/v1/pipeline-stages')
+        .set(member)
+        .send({ stage: 'WON', name: 'Won', sequence: 5, probability: 100 })
+      expect(response.status).toBe(403)
+      expect(response.body.error.code).toBe('FORBIDDEN')
+    })
+
+    it('rejects duplicate enum stages with 409 and updates an existing stage', async () => {
+      const duplicate = await request(app)
+        .post('/api/v1/pipeline-stages')
+        .set(admin)
+        .send({ stage: 'NEW', name: 'Duplicate New', sequence: 0, probability: 10 })
+      expect(duplicate.status).toBe(409)
+
+      const list = await request(app).get('/api/v1/pipeline-stages').set(admin)
+      const target = list.body.data[0]
+      const updated = await request(app)
+        .put(`/api/v1/pipeline-stages/${target.id}`)
+        .set(admin)
+        .send({ probability: 41 })
+      expect(updated.status).toBe(200)
+      expect(updated.body.data.probability).toBe(41)
+
+      await request(app)
+        .put(`/api/v1/pipeline-stages/${target.id}`)
+        .set(admin)
+        .send({ probability: target.probability })
+    })
+  })
+
+  describe('Opportunity operations', () => {
+    it('creates, updates stage, and deletes an opportunity with audit events', async () => {
+      const company = await request(app).post('/api/v1/companies').set(admin).send({
+        name: `Opp Co ${Date.now()}`,
+      })
+      const companyId = company.body.data.id
+
+      const created = await request(app).post('/api/v1/opportunities').set(admin).send({
+        companyId,
+        name: 'Integration deal',
+        stage: 'PROPOSAL',
+        amount: 75000,
+        closeDate: '2026-12-01T00:00:00.000Z',
+      })
+      expect(created.status).toBe(201)
+      expect(created.body.data.stage).toBe('PROPOSAL')
+      const opportunityId = created.body.data.id
+
+      const updated = await request(app)
+        .put(`/api/v1/opportunities/${opportunityId}`)
+        .set(admin)
+        .send({ stage: 'WON' })
+      expect(updated.status).toBe(200)
+      expect(updated.body.data.stage).toBe('WON')
+
+      const audit = await request(app)
+        .get('/api/v1/audit')
+        .query({ entityType: 'opportunity', entityId: opportunityId })
+        .set(admin)
+      const actions = audit.body.data.map((event: { action: string }) => event.action)
+      expect(actions).toContain('opportunity.created')
+      expect(actions).toContain('opportunity.stage-changed')
+
+      const filtered = await request(app)
+        .get('/api/v1/opportunities')
+        .query({ companyId, stage: 'WON' })
+        .set(admin)
+      expect(filtered.status).toBe(200)
+      expect(filtered.body.data.some((o: { id: string }) => o.id === opportunityId)).toBe(true)
+
+      const deleted = await request(app).delete(`/api/v1/opportunities/${opportunityId}`).set(admin)
+      expect(deleted.status).toBe(204)
+      await request(app).delete(`/api/v1/companies/${companyId}`).set(admin)
+    })
+
+    it('blocks members from creating opportunities', async () => {
+      const response = await request(app)
+        .post('/api/v1/opportunities')
+        .set(member)
+        .send({ companyId: 'x', name: 'Sneaky', amount: 1 })
+      expect(response.status).toBe(403)
+    })
+  })
+
+  describe('Campaign operations', () => {
+    it('creates a campaign and nested steps, then deletes the campaign', async () => {
+      const created = await request(app).post('/api/v1/campaigns').set(admin).send({
+        name: `Q4 Campaign ${Date.now()}`,
+        type: 'OUTBOUND',
+        status: 'DRAFT',
+      })
+      expect(created.status).toBe(201)
+      const campaignId = created.body.data.id
+
+      const step = await request(app).post(`/api/v1/campaigns/${campaignId}/steps`).set(admin).send({
+        sequence: 1,
+        actionType: 'EMAIL',
+        subject: 'Intro',
+        status: 'PENDING',
+      })
+      expect(step.status).toBe(201)
+      expect(step.body.data.campaignId).toBe(campaignId)
+
+      const steps = await request(app).get(`/api/v1/campaigns/${campaignId}/steps`).set(admin)
+      expect(steps.status).toBe(200)
+      expect(steps.body.data).toHaveLength(1)
+
+      const stepId = step.body.data.id
+      const updated = await request(app)
+        .put(`/api/v1/campaign-steps/${stepId}`)
+        .set(admin)
+        .send({ status: 'DONE' })
+      expect(updated.status).toBe(200)
+      expect(updated.body.data.status).toBe('DONE')
+
+      const deletedStep = await request(app).delete(`/api/v1/campaign-steps/${stepId}`).set(admin)
+      expect(deletedStep.status).toBe(204)
+
+      const deleted = await request(app).delete(`/api/v1/campaigns/${campaignId}`).set(admin)
+      expect(deleted.status).toBe(204)
+    })
+  })
+
+  describe('Follow-up operations', () => {
+    it('creates a follow-up for an activity and emits an audit event', async () => {
+      const company = await request(app).post('/api/v1/companies').set(admin).send({
+        name: `FollowUp Co ${Date.now()}`,
+      })
+      const companyId = company.body.data.id
+
+      const activity = await request(app).post('/api/v1/activities').set(admin).send({
+        companyId,
+        type: 'MEETING',
+        summary: 'Deal review',
+      })
+      expect(activity.status).toBe(201)
+      const activityId = activity.body.data.id
+
+      const created = await request(app).post('/api/v1/follow-ups').set(admin).send({
+        activityId,
+        dueAt: '2026-09-25T09:00:00.000Z',
+        status: 'OPEN',
+        notes: 'Follow up on review',
+      })
+      expect(created.status).toBe(201)
+      expect(created.body.data.activityId).toBe(activityId)
+
+      const audit = await request(app)
+        .get('/api/v1/audit')
+        .query({ entityType: 'follow-up', entityId: created.body.data.id })
+        .set(admin)
+      expect(
+        audit.body.data.some((e: { action: string }) => e.action === 'follow-up.created'),
+      ).toBe(true)
+
+      await request(app).delete(`/api/v1/follow-ups/${created.body.data.id}`).set(admin)
+      await request(app).delete(`/api/v1/activities/${activityId}`).set(admin)
+      await request(app).delete(`/api/v1/companies/${companyId}`).set(admin)
+    })
+  })
+
+  describe('Analytics', () => {
+    it('returns pipeline, campaign, and follow-up analytics', async () => {
+      const pipeline = await request(app).get('/api/v1/analytics/pipeline').set(admin)
+      expect(pipeline.status).toBe(200)
+      expect(pipeline.body.data).toHaveProperty('totalValue')
+      expect(pipeline.body.data).toHaveProperty('byStage')
+      expect(Array.isArray(pipeline.body.data.byStage)).toBe(true)
+
+      const campaigns = await request(app).get('/api/v1/analytics/campaigns').set(admin)
+      expect(campaigns.status).toBe(200)
+      expect(campaigns.body.data).toHaveProperty('total')
+      expect(campaigns.body.data).toHaveProperty('byStatus')
+
+      const followUps = await request(app).get('/api/v1/analytics/follow-ups').set(admin)
+      expect(followUps.status).toBe(200)
+      expect(followUps.body.data).toHaveProperty('overdueCount')
+    })
+
+    it('allows members to read analytics', async () => {
+      const response = await request(app).get('/api/v1/analytics/pipeline').set(member)
+      expect(response.status).toBe(200)
+    })
+  })
+})

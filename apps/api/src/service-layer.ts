@@ -1,8 +1,16 @@
 import type {
   Activity,
+  Campaign,
+  CampaignAnalyticsSummary,
+  CampaignStep,
   Company,
   Contact,
+  FollowUp,
+  FollowUpAnalyticsSummary,
   Lead,
+  Opportunity,
+  PipelineAnalyticsSummary,
+  PipelineStage,
   Task,
   User,
   DashboardSummary,
@@ -12,11 +20,17 @@ import type { AuditService, AuditEvent } from '@naeos-crm/audit'
 import type {
   ActivityReadPort,
   AuditReadPort,
+  CampaignReadPort,
+  CampaignStepReadPort,
   CompanyReadPort,
   ContactReadPort,
   DashboardReadPort,
+  FollowUpReadPort,
   LeadReadPort,
+  OpportunityReadPort,
   PageQuery,
+  PipelineAnalyticsReadPort,
+  PipelineStageReadPort,
   TaskReadPort,
   UserReadPort,
 } from './domain-interfaces'
@@ -541,6 +555,445 @@ export class DashboardFacade {
 
   async getSummary(): Promise<DashboardSummary> {
     return this.dashboardReadPort.getSummary()
+  }
+}
+
+export class PipelineStageFacade {
+  constructor(
+    private readonly pipelineStageReadPort: PipelineStageReadPort,
+    private readonly audit: AuditService,
+  ) {}
+
+  async getStage(id: string): Promise<PipelineStage | null> {
+    return this.pipelineStageReadPort.findById(id)
+  }
+
+  async listStages(params?: PageQuery) {
+    return this.pipelineStageReadPort.list(params)
+  }
+
+  async createStage(input: Omit<PipelineStage, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    const stage = await this.pipelineStageReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'pipeline-stage.created',
+      entityType: 'pipeline-stage',
+      entityId: stage.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: stage as unknown as Record<string, unknown>,
+    })
+    return stage
+  }
+
+  async updateStage(id: string, input: Partial<PipelineStage>, auditMeta: AuditMetadata) {
+    const previous = await this.pipelineStageReadPort.findById(id)
+    const stage = await this.pipelineStageReadPort.update(id, input)
+
+    if (!stage) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'pipeline-stage.updated',
+      entityType: 'pipeline-stage',
+      entityId: stage.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: stage as unknown as Record<string, unknown>,
+    })
+    return stage
+  }
+
+  async deleteStage(id: string, auditMeta: AuditMetadata) {
+    const previous = await this.pipelineStageReadPort.findById(id)
+    const deleted = await this.pipelineStageReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'pipeline-stage.deleted',
+        entityType: 'pipeline-stage',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+
+    return deleted
+  }
+
+  async reorderStages(orderedIds: string[], auditMeta: AuditMetadata) {
+    const stages = await this.pipelineStageReadPort.reorder(orderedIds)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'pipeline-stage.reordered',
+      entityType: 'pipeline-stage',
+      entityId: 'all',
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: { orderedIds } as unknown as Record<string, unknown>,
+    })
+    return stages
+  }
+}
+
+export class OpportunityFacade {
+  constructor(
+    private readonly opportunityReadPort: OpportunityReadPort,
+    private readonly audit: AuditService,
+    private readonly companyReadPort: CompanyReadPort,
+  ) {}
+
+  async getOpportunity(id: string) {
+    return this.opportunityReadPort.findById(id)
+  }
+
+  async listOpportunities(params?: { stage?: Opportunity['stage']; companyId?: string; ownerId?: string } & PageQuery) {
+    return this.opportunityReadPort.list(params)
+  }
+
+  async listByCompany(companyId: string, params?: PageQuery) {
+    return this.opportunityReadPort.listByCompany(companyId, params)
+  }
+
+  async listByOwner(ownerId: string, params?: PageQuery) {
+    return this.opportunityReadPort.listByOwner(ownerId, params)
+  }
+
+  async createOpportunity(input: Omit<Opportunity, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId)
+    const opportunity = await this.opportunityReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'opportunity.created',
+      entityType: 'opportunity',
+      entityId: opportunity.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: opportunity as unknown as Record<string, unknown>,
+    })
+    return opportunity
+  }
+
+  async updateOpportunity(id: string, input: Partial<Opportunity>, auditMeta: AuditMetadata) {
+    const previous = await this.opportunityReadPort.findById(id)
+    const targetCompanyId = input.companyId ?? previous?.companyId
+    if (targetCompanyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, targetCompanyId)
+    }
+    const opportunity = await this.opportunityReadPort.update(id, input)
+
+    if (!opportunity) return null
+
+    const previousState = (previous as unknown as Record<string, unknown>) ?? undefined
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'opportunity.updated',
+      entityType: 'opportunity',
+      entityId: opportunity.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState,
+      newState: opportunity as unknown as Record<string, unknown>,
+    })
+
+    if (previous && input.stage && previous.stage !== opportunity.stage) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'opportunity.stage-changed',
+        entityType: 'opportunity',
+        entityId: opportunity.id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: { stage: previous.stage } as Record<string, unknown>,
+        newState: { stage: opportunity.stage } as Record<string, unknown>,
+      })
+    }
+
+    return opportunity
+  }
+
+  async deleteOpportunity(id: string, auditMeta: AuditMetadata) {
+    const previous = await this.opportunityReadPort.findById(id)
+    if (previous?.companyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, previous.companyId)
+    }
+    const deleted = await this.opportunityReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'opportunity.deleted',
+        entityType: 'opportunity',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+
+    return deleted
+  }
+}
+
+export class CampaignFacade {
+  constructor(
+    private readonly campaignReadPort: CampaignReadPort,
+    private readonly audit: AuditService,
+  ) {}
+
+  async getCampaign(id: string) {
+    return this.campaignReadPort.findById(id)
+  }
+
+  async listCampaigns(params?: { status?: Campaign['status']; type?: Campaign['type']; ownerId?: string } & PageQuery) {
+    return this.campaignReadPort.list(params)
+  }
+
+  async listByOwner(ownerId: string, params?: PageQuery) {
+    return this.campaignReadPort.listByOwner(ownerId, params)
+  }
+
+  async createCampaign(input: Omit<Campaign, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
+    const campaign = await this.campaignReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'campaign.created',
+      entityType: 'campaign',
+      entityId: campaign.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: campaign as unknown as Record<string, unknown>,
+    })
+    return campaign
+  }
+
+  async updateCampaign(id: string, input: Partial<Campaign>, auditMeta: AuditMetadata) {
+    const previous = await this.campaignReadPort.findById(id)
+    assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId ?? previous?.ownerId)
+    const campaign = await this.campaignReadPort.update(id, input)
+
+    if (!campaign) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'campaign.updated',
+      entityType: 'campaign',
+      entityId: campaign.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: campaign as unknown as Record<string, unknown>,
+    })
+    return campaign
+  }
+
+  async deleteCampaign(id: string, auditMeta: AuditMetadata) {
+    const previous = await this.campaignReadPort.findById(id)
+    if (previous) assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
+    const deleted = await this.campaignReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'campaign.deleted',
+        entityType: 'campaign',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+
+    return deleted
+  }
+}
+
+export class CampaignStepFacade {
+  constructor(
+    private readonly campaignStepReadPort: CampaignStepReadPort,
+    private readonly campaignReadPort: CampaignReadPort,
+    private readonly audit: AuditService,
+  ) {}
+
+  private async assertCampaignAccess(campaignId: string, actor: AuditMetadata['actor']) {
+    if (!actor) throw forbidden('No authenticated actor')
+    if (isPrivileged(actor)) return
+    const campaign = await this.campaignReadPort.findById(campaignId)
+    if (!campaign) {
+      throw new HttpError(404, 'CAMPAIGN_NOT_FOUND', `Campaign ${campaignId} was not found`)
+    }
+    if (campaign.ownerId === actor.id) return
+    throw forbidden('You do not have access to this campaign')
+  }
+
+  async getStep(id: string) {
+    return this.campaignStepReadPort.findById(id)
+  }
+
+  async listByCampaign(campaignId: string, params?: PageQuery) {
+    return this.campaignStepReadPort.listByCampaign(campaignId, params)
+  }
+
+  async createStep(input: Omit<CampaignStep, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    await this.assertCampaignAccess(input.campaignId, auditMeta.actor)
+    const step = await this.campaignStepReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'campaign-step.created',
+      entityType: 'campaign-step',
+      entityId: step.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: step as unknown as Record<string, unknown>,
+    })
+    return step
+  }
+
+  async updateStep(id: string, input: Partial<CampaignStep>, auditMeta: AuditMetadata) {
+    const previous = await this.campaignStepReadPort.findById(id)
+    await this.assertCampaignAccess(input.campaignId ?? previous?.campaignId ?? '', auditMeta.actor)
+    const step = await this.campaignStepReadPort.update(id, input)
+
+    if (!step) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'campaign-step.updated',
+      entityType: 'campaign-step',
+      entityId: step.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: step as unknown as Record<string, unknown>,
+    })
+    return step
+  }
+
+  async deleteStep(id: string, auditMeta: AuditMetadata) {
+    const previous = await this.campaignStepReadPort.findById(id)
+    if (previous) await this.assertCampaignAccess(previous.campaignId, auditMeta.actor)
+    const deleted = await this.campaignStepReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'campaign-step.deleted',
+        entityType: 'campaign-step',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+
+    return deleted
+  }
+}
+
+export class FollowUpFacade {
+  constructor(
+    private readonly followUpReadPort: FollowUpReadPort,
+    private readonly audit: AuditService,
+    private readonly activityReadPort: ActivityReadPort,
+    private readonly companyReadPort: CompanyReadPort,
+  ) {}
+
+  private async assertFollowUpAccess(activityId: string, ownerId: string | undefined, actor: AuditMetadata['actor']) {
+    if (!actor) throw forbidden('No authenticated actor')
+    if (isPrivileged(actor)) return
+    const activity = await this.activityReadPort.findById(activityId)
+    if (activity?.companyId) {
+      await assertCompanyAccess(this.companyReadPort, actor, activity.companyId)
+      return
+    }
+    assertSelfScoped(actor, 'ownerId', ownerId)
+  }
+
+  async getFollowUp(id: string) {
+    return this.followUpReadPort.findById(id)
+  }
+
+  async listFollowUps(params?: { status?: FollowUp['status']; ownerId?: string } & PageQuery) {
+    return this.followUpReadPort.list(params)
+  }
+
+  async listByActivity(activityId: string, params?: PageQuery) {
+    return this.followUpReadPort.listByActivity(activityId, params)
+  }
+
+  async createFollowUp(input: Omit<FollowUp, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    await this.assertFollowUpAccess(input.activityId, input.ownerId, auditMeta.actor)
+    const followUp = await this.followUpReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'follow-up.created',
+      entityType: 'follow-up',
+      entityId: followUp.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: followUp as unknown as Record<string, unknown>,
+    })
+    return followUp
+  }
+
+  async updateFollowUp(id: string, input: Partial<FollowUp>, auditMeta: AuditMetadata) {
+    const previous = await this.followUpReadPort.findById(id)
+    await this.assertFollowUpAccess(input.activityId ?? previous?.activityId ?? '', input.ownerId ?? previous?.ownerId, auditMeta.actor)
+    const followUp = await this.followUpReadPort.update(id, input)
+
+    if (!followUp) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'follow-up.updated',
+      entityType: 'follow-up',
+      entityId: followUp.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: followUp as unknown as Record<string, unknown>,
+    })
+    return followUp
+  }
+
+  async deleteFollowUp(id: string, auditMeta: AuditMetadata) {
+    const previous = await this.followUpReadPort.findById(id)
+    if (previous) await this.assertFollowUpAccess(previous.activityId, previous.ownerId, auditMeta.actor)
+    const deleted = await this.followUpReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'follow-up.deleted',
+        entityType: 'follow-up',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+
+    return deleted
+  }
+}
+
+export class PipelineAnalyticsFacade {
+  constructor(private readonly analyticsReadPort: PipelineAnalyticsReadPort) {}
+
+  async getPipelineAnalytics(): Promise<PipelineAnalyticsSummary> {
+    return this.analyticsReadPort.getPipelineAnalytics()
+  }
+
+  async getCampaignAnalytics(): Promise<CampaignAnalyticsSummary> {
+    return this.analyticsReadPort.getCampaignAnalytics()
+  }
+
+  async getFollowUpAnalytics(): Promise<FollowUpAnalyticsSummary> {
+    return this.analyticsReadPort.getFollowUpAnalytics()
   }
 }
 

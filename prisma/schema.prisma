@@ -50,6 +50,53 @@ enum TaskStatus {
   DONE
 }
 
+enum OpportunityStage {
+  NEW
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum CampaignType {
+  OUTBOUND
+  INBOUND
+  NURTURE
+  EVENT
+  PARTNER
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum CampaignStepActionType {
+  EMAIL
+  CALL
+  TASK
+  WAIT
+}
+
+enum CampaignStepStatus {
+  PENDING
+  READY
+  EXECUTING
+  DONE
+  SKIPPED
+}
+
+enum FollowUpStatus {
+  OPEN
+  DONE
+  DEFERRED
+  CANCELLED
+}
+
 enum AuditResult {
   SUCCESS
   FAILURE
@@ -68,6 +115,9 @@ model User {
   ownedLeads       Lead[]      @relation("LeadOwner")
   assignedTasks    Task[]      @relation("TaskAssignee")
   authoredActivities Activity[] @relation("ActivityAuthor")
+  ownedOpportunities Opportunity[] @relation("OpportunityOwner")
+  ownedCampaigns   Campaign[]  @relation("CampaignOwner")
+  ownedFollowUps   FollowUp[]  @relation("FollowUpOwner")
 }
 
 model Company {
@@ -85,6 +135,7 @@ model Company {
   leads      Lead[]
   activities Activity[]
   tasks      Task[]
+  opportunities Opportunity[]
 
   @@index([ownerId])
   @@index([status])
@@ -141,6 +192,8 @@ model Activity {
   contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
   owner   User?    @relation("ActivityAuthor", fields: [ownerId], references: [id])
 
+  followUps FollowUp[]
+
   @@index([companyId])
   @@index([contactId])
   @@index([ownerId])
@@ -186,4 +239,89 @@ model AuditEvent {
   @@index([actorId])
   @@index([requestId])
   @@index([createdAt])
+}
+
+model PipelineStage {
+  id          String           @id @default(cuid())
+  stage       OpportunityStage @unique
+  name        String           @unique
+  sequence    Int              @unique
+  probability Int              @default(20)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([sequence])
+}
+
+model Opportunity {
+  id        String           @id @default(cuid())
+  companyId String
+  name      String
+  stage     OpportunityStage @default(NEW)
+  amount    Decimal          @default(0) @db.Decimal(14, 2)
+  closeDate DateTime?
+  ownerId   String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  owner   User?   @relation("OpportunityOwner", fields: [ownerId], references: [id])
+
+  @@index([companyId])
+  @@index([ownerId])
+  @@index([stage])
+  @@index([closeDate])
+}
+
+model Campaign {
+  id        String         @id @default(cuid())
+  name      String
+  type      CampaignType   @default(OUTBOUND)
+  status    CampaignStatus @default(DRAFT)
+  ownerId   String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  owner User?          @relation("CampaignOwner", fields: [ownerId], references: [id])
+  steps CampaignStep[]
+
+  @@index([ownerId])
+  @@index([status])
+}
+
+model CampaignStep {
+  id          String                  @id @default(cuid())
+  campaignId  String
+  sequence    Int
+  actionType  CampaignStepActionType
+  subject     String?
+  scheduledAt DateTime?
+  status      CampaignStepStatus      @default(PENDING)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, sequence])
+  @@index([campaignId])
+  @@index([status])
+}
+
+model FollowUp {
+  id         String         @id @default(cuid())
+  activityId String
+  dueAt      DateTime
+  status     FollowUpStatus @default(OPEN)
+  ownerId    String?
+  notes      String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  owner    User?    @relation("FollowUpOwner", fields: [ownerId], references: [id])
+
+  @@index([activityId])
+  @@index([ownerId])
+  @@index([status])
+  @@index([dueAt])
 }

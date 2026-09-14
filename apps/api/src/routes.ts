@@ -11,10 +11,16 @@ import {
 import {
   ActivityFacade,
   AuditFacade,
+  CampaignFacade,
+  CampaignStepFacade,
   CompanyFacade,
   ContactFacade,
   DashboardFacade,
+  FollowUpFacade,
   LeadFacade,
+  OpportunityFacade,
+  PipelineAnalyticsFacade,
+  PipelineStageFacade,
   TaskFacade,
   UserFacade,
 } from './service-layer'
@@ -22,10 +28,16 @@ import {
   PrismaActivityReadPort,
   PrismaAuditReadPort,
   PrismaAuditSink,
+  PrismaCampaignReadPort,
+  PrismaCampaignStepReadPort,
   PrismaCompanyReadPort,
   PrismaContactReadPort,
   PrismaDashboardReadPort,
+  PrismaFollowUpReadPort,
   PrismaLeadReadPort,
+  PrismaOpportunityReadPort,
+  PrismaPipelineAnalyticsReadPort,
+  PrismaPipelineStageReadPort,
   PrismaTaskReadPort,
   PrismaUserReadPort,
 } from './prisma-ports'
@@ -33,19 +45,33 @@ import { ApiAuthGuard } from './auth'
 import { asyncHandler } from './middleware'
 import {
   auditQuerySchema,
+  campaignQuerySchema,
   companyQuerySchema,
   createActivitySchema,
+  createCampaignSchema,
+  createCampaignStepNestedSchema,
   createCompanySchema,
   createContactSchema,
+  createFollowUpSchema,
   createLeadSchema,
+  createOpportunitySchema,
+  createPipelineStageSchema,
   createTaskSchema,
   createUserSchema,
+  followUpQuerySchema,
   idParamSchema,
   listByCompanyQuerySchema,
+  opportunityQuerySchema,
+  reorderPipelineStagesSchema,
   updateActivitySchema,
+  updateCampaignSchema,
+  updateCampaignStepSchema,
   updateCompanySchema,
   updateContactSchema,
+  updateFollowUpSchema,
   updateLeadSchema,
+  updateOpportunitySchema,
+  updatePipelineStageSchema,
   updateTaskSchema,
   updateUserSchema,
 } from './validation'
@@ -54,12 +80,26 @@ const auditSink = new PrismaAuditSink()
 const auditService = new AuditService(auditSink, new PrismaAuditReadPort())
 
 const companyReadPort = new PrismaCompanyReadPort()
+const activityReadPort = new PrismaActivityReadPort()
 const userFacade = new UserFacade(new PrismaUserReadPort(), auditService)
 const companyFacade = new CompanyFacade(companyReadPort, auditService)
 const contactFacade = new ContactFacade(new PrismaContactReadPort(), auditService, companyReadPort)
 const leadFacade = new LeadFacade(new PrismaLeadReadPort(), auditService)
-const activityFacade = new ActivityFacade(new PrismaActivityReadPort(), auditService, companyReadPort)
+const activityFacade = new ActivityFacade(activityReadPort, auditService, companyReadPort)
 const taskFacade = new TaskFacade(new PrismaTaskReadPort(), auditService, companyReadPort)
+const pipelineStageFacade = new PipelineStageFacade(new PrismaPipelineStageReadPort(), auditService)
+const opportunityFacade = new OpportunityFacade(new PrismaOpportunityReadPort(), auditService, companyReadPort)
+const campaignReadPort = new PrismaCampaignReadPort()
+const campaignStepReadPort = new PrismaCampaignStepReadPort()
+const campaignFacade = new CampaignFacade(campaignReadPort, auditService)
+const campaignStepFacade = new CampaignStepFacade(campaignStepReadPort, campaignReadPort, auditService)
+const followUpFacade = new FollowUpFacade(
+  new PrismaFollowUpReadPort(),
+  auditService,
+  activityReadPort,
+  companyReadPort,
+)
+const analyticsFacade = new PipelineAnalyticsFacade(new PrismaPipelineAnalyticsReadPort())
 const dashboardFacade = new DashboardFacade(new PrismaDashboardReadPort())
 const auditFacade = new AuditFacade(new PrismaAuditReadPort())
 
@@ -452,6 +492,303 @@ router.delete('/api/v1/tasks/:id', asyncHandler(async (req, res) => {
     return
   }
   res.status(204).send()
+}))
+
+// ---------- Pipeline stages ----------
+
+router.get('/api/v1/pipeline-stages', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'pipeline', 'read'))) return
+  const { data } = await pipelineStageFacade.listStages()
+  res.json({ data, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.post('/api/v1/pipeline-stages', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'pipeline', 'write'))) return
+  const input = createPipelineStageSchema.parse(req.body)
+  const stage = await pipelineStageFacade.createStage(input, auditMeta(req))
+  res.status(201).json({ data: stage, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.post('/api/v1/pipeline-stages/reorder', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'pipeline', 'write'))) return
+  const { orderedIds } = reorderPipelineStagesSchema.parse(req.body)
+  const stages = await pipelineStageFacade.reorderStages(orderedIds, auditMeta(req))
+  res.json({ data: stages, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/pipeline-stages/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'pipeline', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const stage = await pipelineStageFacade.getStage(id)
+  if (!stage) {
+    res.status(404).json(buildErrorResponse('PIPELINE_STAGE_NOT_FOUND', `Pipeline stage ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: stage, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/pipeline-stages/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'pipeline', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updatePipelineStageSchema.parse(req.body)
+  const stage = await pipelineStageFacade.updateStage(id, input, auditMeta(req))
+  if (!stage) {
+    res.status(404).json(buildErrorResponse('PIPELINE_STAGE_NOT_FOUND', `Pipeline stage ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: stage, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/pipeline-stages/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'pipeline', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await pipelineStageFacade.deleteStage(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('PIPELINE_STAGE_NOT_FOUND', `Pipeline stage ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Opportunities ----------
+
+router.get('/api/v1/opportunities', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'opportunity', 'read'))) return
+  const query = opportunityQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await opportunityFacade.listOpportunities({
+    stage: query.stage,
+    companyId: query.companyId,
+    ownerId: query.ownerId,
+    limit: query.limit,
+    offset,
+  })
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
+}))
+
+router.post('/api/v1/opportunities', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'opportunity', 'write'))) return
+  const input = createOpportunitySchema.parse(req.body)
+  const opportunity = await opportunityFacade.createOpportunity(input, auditMeta(req))
+  res.status(201).json({ data: opportunity, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/opportunities/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'opportunity', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const opportunity = await opportunityFacade.getOpportunity(id)
+  if (!opportunity) {
+    res.status(404).json(buildErrorResponse('OPPORTUNITY_NOT_FOUND', `Opportunity ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: opportunity, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/opportunities/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'opportunity', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateOpportunitySchema.parse(req.body)
+  const opportunity = await opportunityFacade.updateOpportunity(id, input, auditMeta(req))
+  if (!opportunity) {
+    res.status(404).json(buildErrorResponse('OPPORTUNITY_NOT_FOUND', `Opportunity ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: opportunity, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/opportunities/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'opportunity', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await opportunityFacade.deleteOpportunity(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('OPPORTUNITY_NOT_FOUND', `Opportunity ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Campaigns ----------
+
+router.get('/api/v1/campaigns', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'campaign', 'read'))) return
+  const query = campaignQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await campaignFacade.listCampaigns({
+    status: query.status,
+    type: query.type,
+    ownerId: query.ownerId,
+    limit: query.limit,
+    offset,
+  })
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
+}))
+
+router.post('/api/v1/campaigns', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'campaign', 'write'))) return
+  const input = createCampaignSchema.parse(req.body)
+  const campaign = await campaignFacade.createCampaign(input, auditMeta(req))
+  res.status(201).json({ data: campaign, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/campaigns/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'campaign', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const campaign = await campaignFacade.getCampaign(id)
+  if (!campaign) {
+    res.status(404).json(buildErrorResponse('CAMPAIGN_NOT_FOUND', `Campaign ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: campaign, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/campaigns/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'campaign', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateCampaignSchema.parse(req.body)
+  const campaign = await campaignFacade.updateCampaign(id, input, auditMeta(req))
+  if (!campaign) {
+    res.status(404).json(buildErrorResponse('CAMPAIGN_NOT_FOUND', `Campaign ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: campaign, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/campaigns/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'campaign', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await campaignFacade.deleteCampaign(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('CAMPAIGN_NOT_FOUND', `Campaign ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Campaign steps (nested under campaigns) ----------
+
+router.get('/api/v1/campaigns/:id/steps', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'campaign', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const { data } = await campaignStepFacade.listByCampaign(id)
+  res.json({ data, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.post('/api/v1/campaigns/:id/steps', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'campaign', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = createCampaignStepNestedSchema.parse(req.body)
+  const step = await campaignStepFacade.createStep({ ...input, campaignId: id }, auditMeta(req))
+  res.status(201).json({ data: step, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/campaign-steps/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'campaign', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const step = await campaignStepFacade.getStep(id)
+  if (!step) {
+    res.status(404).json(buildErrorResponse('CAMPAIGN_STEP_NOT_FOUND', `Campaign step ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: step, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/campaign-steps/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'campaign', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateCampaignStepSchema.parse(req.body)
+  const step = await campaignStepFacade.updateStep(id, input, auditMeta(req))
+  if (!step) {
+    res.status(404).json(buildErrorResponse('CAMPAIGN_STEP_NOT_FOUND', `Campaign step ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: step, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/campaign-steps/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'campaign', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await campaignStepFacade.deleteStep(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('CAMPAIGN_STEP_NOT_FOUND', `Campaign step ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Follow-ups ----------
+
+router.get('/api/v1/follow-ups', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'follow-up', 'read'))) return
+  const query = followUpQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await followUpFacade.listFollowUps({
+    status: query.status,
+    ownerId: query.ownerId,
+    limit: query.limit,
+    offset,
+  })
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
+}))
+
+router.post('/api/v1/follow-ups', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'follow-up', 'write'))) return
+  const input = createFollowUpSchema.parse(req.body)
+  const followUp = await followUpFacade.createFollowUp(input, auditMeta(req))
+  res.status(201).json({ data: followUp, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/follow-ups/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'follow-up', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const followUp = await followUpFacade.getFollowUp(id)
+  if (!followUp) {
+    res.status(404).json(buildErrorResponse('FOLLOW_UP_NOT_FOUND', `Follow-up ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: followUp, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/follow-ups/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'follow-up', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateFollowUpSchema.parse(req.body)
+  const followUp = await followUpFacade.updateFollowUp(id, input, auditMeta(req))
+  if (!followUp) {
+    res.status(404).json(buildErrorResponse('FOLLOW_UP_NOT_FOUND', `Follow-up ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: followUp, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/follow-ups/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'follow-up', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await followUpFacade.deleteFollowUp(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('FOLLOW_UP_NOT_FOUND', `Follow-up ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Analytics ----------
+
+router.get('/api/v1/analytics/pipeline', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'analytics', 'read'))) return
+  const summary = await analyticsFacade.getPipelineAnalytics()
+  res.json({ data: summary, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/analytics/campaigns', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'analytics', 'read'))) return
+  const summary = await analyticsFacade.getCampaignAnalytics()
+  res.json({ data: summary, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/analytics/follow-ups', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'analytics', 'read'))) return
+  const summary = await analyticsFacade.getFollowUpAnalytics()
+  res.json({ data: summary, meta: buildSuccessMeta(req.requestId) })
 }))
 
 // ---------- Dashboard ----------
