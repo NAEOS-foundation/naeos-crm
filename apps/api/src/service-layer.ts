@@ -1,256 +1,560 @@
 import type {
+  Activity,
   Company,
   Contact,
   Lead,
-  Activity,
   Task,
+  User,
+  DashboardSummary,
 } from '@naeos-crm/domain'
+import type { AuditService, AuditEvent } from '@naeos-crm/audit'
 
 import type {
   ActivityReadPort,
+  AuditReadPort,
   CompanyReadPort,
   ContactReadPort,
+  DashboardReadPort,
   LeadReadPort,
+  PageQuery,
   TaskReadPort,
+  UserReadPort,
 } from './domain-interfaces'
+import { forbidden, HttpError } from './errors'
 
-export const seedCompanies: Company[] = [
-  {
-    id: 'company-1',
-    name: 'Northwind Labs',
-    industry: 'SaaS',
-    region: 'APAC',
-    status: 'ACTIVE',
-    ownerId: 'user-1',
-    createdAt: new Date('2026-01-10T08:00:00.000Z'),
-    updatedAt: new Date('2026-09-01T10:00:00.000Z'),
-  },
-  {
-    id: 'company-2',
-    name: 'Blue Harbor Ventures',
-    industry: 'Finance',
-    region: 'EMEA',
-    status: 'PENDING',
-    ownerId: 'user-2',
-    createdAt: new Date('2026-02-14T09:30:00.000Z'),
-    updatedAt: new Date('2026-09-03T12:15:00.000Z'),
-  },
-]
+interface AuditMetadata {
+  actorId?: string
+  requestId?: string
+  actor?: { id: string; roles: string[] }
+}
 
-export const seedContacts: Contact[] = [
-  {
-    id: 'contact-1',
-    companyId: 'company-1',
-    fullName: 'Ari Suryadi',
-    email: 'ari@northwindlabs.example',
-    role: 'Head of Operations',
-    status: 'ACTIVE',
-    createdAt: new Date('2026-01-15T09:00:00.000Z'),
-    updatedAt: new Date('2026-09-01T09:00:00.000Z'),
-  },
-  {
-    id: 'contact-2',
-    companyId: 'company-2',
-    fullName: 'Mira Sulaiman',
-    email: 'mira@blueharbor.example',
-    role: 'Finance Director',
-    status: 'PENDING',
-    createdAt: new Date('2026-02-18T11:00:00.000Z'),
-    updatedAt: new Date('2026-09-03T10:10:00.000Z'),
-  },
-]
-
-export const seedLeads: Lead[] = [
-  {
-    id: 'lead-1',
-    companyId: 'company-1',
-    source: 'Outbound',
-    status: 'QUALIFIED',
-    ownerId: 'user-1',
-    score: 82,
-    createdAt: new Date('2026-08-10T08:00:00.000Z'),
-    updatedAt: new Date('2026-08-15T08:00:00.000Z'),
-  },
-]
-
-export const seedActivities: Activity[] = [
-  {
-    id: 'activity-1',
-    companyId: 'company-1',
-    type: 'EMAIL',
-    channel: 'email',
-    summary: 'Sent onboarding follow-up',
-    occurredAt: new Date('2026-09-05T09:00:00.000Z'),
-    ownerId: 'user-1',
-    createdAt: new Date('2026-09-05T09:05:00.000Z'),
-  },
-]
-
-export const seedTasks: Task[] = [
-  {
-    id: 'task-1',
-    companyId: 'company-1',
-    assigneeId: 'user-1',
-    subject: 'Review partnership terms',
-    dueAt: new Date('2026-09-20T10:00:00.000Z'),
-    status: 'OPEN',
-    createdAt: new Date('2026-09-06T08:00:00.000Z'),
-    updatedAt: new Date('2026-09-06T08:00:00.000Z'),
-  },
-]
-
-export class InMemoryCompanyReadPort implements CompanyReadPort {
-  constructor(private readonly companies: Company[] = seedCompanies) {}
-
-  async findById(id: string): Promise<Company | null> {
-    return this.companies.find((company) => company.id === id) ?? null
-  }
-
-  async list(): Promise<Company[]> {
-    return [...this.companies]
+async function auditSafely(
+  audit: AuditService,
+  event: Parameters<AuditService['record']>[0],
+): Promise<void> {
+  try {
+    await audit.record(event)
+  } catch (err) {
+    console.error('[audit] Failed to record event', err)
   }
 }
 
-export class InMemoryContactReadPort implements ContactReadPort {
-  constructor(private readonly contacts: Contact[] = seedContacts) {}
-
-  async list(): Promise<Contact[]> {
-    return [...this.contacts]
-  }
-
-  async listByCompany(companyId: string): Promise<Contact[]> {
-    return this.contacts.filter((contact) => contact.companyId === companyId)
-  }
+function isPrivileged(actor?: { id: string; roles: string[] }): boolean {
+  return (
+    actor?.roles.some((role) => {
+      const normalized = role.toLowerCase()
+      return normalized === 'admin' || normalized === 'manager'
+    }) ?? false
+  )
 }
 
-export class InMemoryLeadReadPort implements LeadReadPort {
-  constructor(private readonly leads: Lead[] = seedLeads) {}
-
-  async list(): Promise<Lead[]> {
-    return [...this.leads]
+async function assertCompanyAccess(
+  companyReadPort: CompanyReadPort,
+  actor: AuditMetadata['actor'],
+  companyId: string,
+) {
+  if (!actor) throw forbidden('No authenticated actor')
+  if (isPrivileged(actor)) return
+  const company = await companyReadPort.findById(companyId)
+  if (!company) {
+    throw new HttpError(404, 'COMPANY_NOT_FOUND', `Company ${companyId} was not found`)
   }
-
-  async listByCompany(companyId: string): Promise<Lead[]> {
-    return this.leads.filter((lead) => lead.companyId === companyId)
-  }
+  if (company.ownerId === actor.id) return
+  throw forbidden('You do not have access to records for this company')
 }
 
-export class InMemoryActivityReadPort implements ActivityReadPort {
-  constructor(private readonly activities: Activity[] = seedActivities) {}
-
-  async list(): Promise<Activity[]> {
-    return [...this.activities]
-  }
-
-  async listByCompany(companyId: string): Promise<Activity[]> {
-    return this.activities.filter((activity) => activity.companyId === companyId)
-  }
+function assertSelfScoped(
+  actor: AuditMetadata['actor'],
+  field: 'ownerId' | 'assigneeId',
+  value: string | undefined,
+) {
+  if (!actor) throw forbidden('No authenticated actor')
+  if (isPrivileged(actor)) return
+  if (value && value === actor.id) return
+  throw forbidden(`You cannot modify records you do not own`)
 }
 
-export class InMemoryTaskReadPort implements TaskReadPort {
-  constructor(private readonly tasks: Task[] = seedTasks) {}
+export class UserFacade {
+  constructor(
+    private readonly userReadPort: UserReadPort,
+    private readonly audit: AuditService,
+  ) {}
 
-  async list(): Promise<Task[]> {
-    return [...this.tasks]
+  async getUser(id: string): Promise<User | null> {
+    return this.userReadPort.findById(id)
   }
 
-  async listByCompany(companyId: string): Promise<Task[]> {
-    return this.tasks.filter((task) => task.companyId === companyId)
+  async getUserByEmail(email: string): Promise<User | null> {
+    return this.userReadPort.findByEmail(email)
+  }
+
+  async listUsers(): Promise<User[]> {
+    return this.userReadPort.list()
+  }
+
+  async createUser(input: Omit<User, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    const user = await this.userReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'user.created',
+      entityType: 'user',
+      entityId: user.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: user as unknown as Record<string, unknown>,
+    })
+    return user
+  }
+
+  async updateUser(id: string, input: Partial<User>, auditMeta: AuditMetadata) {
+    const previous = await this.userReadPort.findById(id)
+    const user = await this.userReadPort.update(id, input)
+
+    if (!user) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'user.updated',
+      entityType: 'user',
+      entityId: user.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: user as unknown as Record<string, unknown>,
+    })
+    return user
+  }
+
+  async deleteUser(id: string, auditMeta: AuditMetadata) {
+    const previous = await this.userReadPort.findById(id)
+    const deleted = await this.userReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'user.deleted',
+        entityType: 'user',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+
+    return deleted
   }
 }
 
 export class CompanyFacade {
-  constructor(private readonly companyReadPort: CompanyReadPort) {}
+  constructor(
+    private readonly companyReadPort: CompanyReadPort,
+    private readonly audit: AuditService,
+  ) {}
 
   async getCompany(id: string) {
     return this.companyReadPort.findById(id)
   }
 
-  async listCompanies() {
-    return this.companyReadPort.list()
+  async listCompanies(params?: { status?: Company['status'] } & PageQuery) {
+    return this.companyReadPort.list(params)
+  }
+
+  async createCompany(input: Omit<Company, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    const company = await this.companyReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'company.created',
+      entityType: 'company',
+      entityId: company.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: company as unknown as Record<string, unknown>,
+    })
+    return company
+  }
+
+  async updateCompany(id: string, input: Partial<Company>, auditMeta: AuditMetadata) {
+    const previous = await this.companyReadPort.findById(id)
+    const company = await this.companyReadPort.update(id, input)
+
+    if (!company) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'company.updated',
+      entityType: 'company',
+      entityId: company.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: company as unknown as Record<string, unknown>,
+    })
+    return company
+  }
+
+  async deleteCompany(id: string, auditMeta: AuditMetadata) {
+    const previous = await this.companyReadPort.findById(id)
+    const deleted = await this.companyReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'company.deleted',
+        entityType: 'company',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+
+    return deleted
   }
 }
 
 export class ContactFacade {
-  constructor(private readonly contactReadPort: ContactReadPort) {}
+  constructor(
+    private readonly contactReadPort: ContactReadPort,
+    private readonly audit: AuditService,
+    private readonly companyReadPort: CompanyReadPort,
+  ) {}
 
-  async listContacts() {
-    return this.contactReadPort.list()
+  async getContact(id: string) {
+    return this.contactReadPort.findById(id)
   }
 
-  async listByCompany(companyId: string) {
-    return this.contactReadPort.listByCompany(companyId)
+  async listContacts(params?: PageQuery) {
+    return this.contactReadPort.list(params)
+  }
+
+  async listByCompany(companyId: string, params?: PageQuery) {
+    return this.contactReadPort.listByCompany(companyId, params)
+  }
+
+  async createContact(input: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId)
+    const contact = await this.contactReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'contact.created',
+      entityType: 'contact',
+      entityId: contact.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: contact as unknown as Record<string, unknown>,
+    })
+    return contact
+  }
+
+  async updateContact(id: string, input: Partial<Contact>, auditMeta: AuditMetadata) {
+    const previous = await this.contactReadPort.findById(id)
+    await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId ?? previous?.companyId ?? '')
+    const contact = await this.contactReadPort.update(id, input)
+
+    if (!contact) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'contact.updated',
+      entityType: 'contact',
+      entityId: contact.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: contact as unknown as Record<string, unknown>,
+    })
+    return contact
+  }
+
+  async deleteContact(id: string, auditMeta: AuditMetadata) {
+    const previous = await this.contactReadPort.findById(id)
+    if (previous) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, previous.companyId)
+    }
+    const deleted = await this.contactReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'contact.deleted',
+        entityType: 'contact',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+
+    return deleted
   }
 }
 
 export class LeadFacade {
-  constructor(private readonly leadReadPort: LeadReadPort) {}
+  constructor(
+    private readonly leadReadPort: LeadReadPort,
+    private readonly audit: AuditService,
+  ) {}
 
-  async listLeads() {
-    return this.leadReadPort.list()
+  async getLead(id: string) {
+    return this.leadReadPort.findById(id)
   }
 
-  async listByCompany(companyId: string) {
-    return this.leadReadPort.listByCompany(companyId)
+  async listLeads(params?: PageQuery) {
+    return this.leadReadPort.list(params)
+  }
+
+  async listByCompany(companyId: string, params?: PageQuery) {
+    return this.leadReadPort.listByCompany(companyId, params)
+  }
+
+  async createLead(input: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    const lead = await this.leadReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'lead.created',
+      entityType: 'lead',
+      entityId: lead.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: lead as unknown as Record<string, unknown>,
+    })
+    return lead
+  }
+
+  async updateLead(id: string, input: Partial<Lead>, auditMeta: AuditMetadata) {
+    const previous = await this.leadReadPort.findById(id)
+    const lead = await this.leadReadPort.update(id, input)
+
+    if (!lead) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'lead.updated',
+      entityType: 'lead',
+      entityId: lead.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: lead as unknown as Record<string, unknown>,
+    })
+    return lead
+  }
+
+  async deleteLead(id: string, auditMeta: AuditMetadata) {
+    const previous = await this.leadReadPort.findById(id)
+    const deleted = await this.leadReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'lead.deleted',
+        entityType: 'lead',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+
+    return deleted
   }
 }
 
 export class ActivityFacade {
-  constructor(private readonly activityReadPort: ActivityReadPort) {}
+  constructor(
+    private readonly activityReadPort: ActivityReadPort,
+    private readonly audit: AuditService,
+    private readonly companyReadPort: CompanyReadPort,
+  ) {}
 
-  async listActivities() {
-    return this.activityReadPort.list()
+  async getActivity(id: string) {
+    return this.activityReadPort.findById(id)
   }
 
-  async listByCompany(companyId: string) {
-    return this.activityReadPort.listByCompany(companyId)
+  async listActivities(params?: PageQuery) {
+    return this.activityReadPort.list(params)
+  }
+
+  async listByCompany(companyId: string, params?: PageQuery) {
+    return this.activityReadPort.listByCompany(companyId, params)
+  }
+
+  async createActivity(input: Omit<Activity, 'id' | 'createdAt'>, auditMeta: AuditMetadata) {
+    if (input.companyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId)
+    } else {
+      assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
+    }
+    const activity = await this.activityReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'activity.created',
+      entityType: 'activity',
+      entityId: activity.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: activity as unknown as Record<string, unknown>,
+    })
+    return activity
+  }
+
+  async updateActivity(id: string, input: Partial<Activity>, auditMeta: AuditMetadata) {
+    const previous = await this.activityReadPort.findById(id)
+    const targetCompanyId = input.companyId ?? previous?.companyId
+    if (targetCompanyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, targetCompanyId)
+    } else {
+      assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId ?? previous?.ownerId)
+    }
+    const activity = await this.activityReadPort.update(id, input)
+
+    if (!activity) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'activity.updated',
+      entityType: 'activity',
+      entityId: activity.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: activity as unknown as Record<string, unknown>,
+    })
+    return activity
+  }
+
+  async deleteActivity(id: string, auditMeta: AuditMetadata) {
+    const previous = await this.activityReadPort.findById(id)
+    if (previous?.companyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, previous.companyId)
+    } else if (previous) {
+      assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
+    }
+    const deleted = await this.activityReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'activity.deleted',
+        entityType: 'activity',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+
+    return deleted
   }
 }
 
 export class TaskFacade {
-  constructor(private readonly taskReadPort: TaskReadPort) {}
+  constructor(
+    private readonly taskReadPort: TaskReadPort,
+    private readonly audit: AuditService,
+    private readonly companyReadPort: CompanyReadPort,
+  ) {}
 
-  async listTasks() {
-    return this.taskReadPort.list()
+  async getTask(id: string) {
+    return this.taskReadPort.findById(id)
   }
 
-  async listByCompany(companyId: string) {
-    return this.taskReadPort.listByCompany(companyId)
+  async listTasks(params?: PageQuery) {
+    return this.taskReadPort.list(params)
+  }
+
+  async listByCompany(companyId: string, params?: PageQuery) {
+    return this.taskReadPort.listByCompany(companyId, params)
+  }
+
+  async createTask(input: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    if (input.companyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId)
+    } else {
+      assertSelfScoped(auditMeta.actor, 'assigneeId', input.assigneeId)
+    }
+    const task = await this.taskReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'task.created',
+      entityType: 'task',
+      entityId: task.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: task as unknown as Record<string, unknown>,
+    })
+    return task
+  }
+
+  async updateTask(id: string, input: Partial<Task>, auditMeta: AuditMetadata) {
+    const previous = await this.taskReadPort.findById(id)
+    const targetCompanyId = input.companyId ?? previous?.companyId
+    if (targetCompanyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, targetCompanyId)
+    } else {
+      assertSelfScoped(auditMeta.actor, 'assigneeId', input.assigneeId ?? previous?.assigneeId)
+    }
+    const task = await this.taskReadPort.update(id, input)
+
+    if (!task) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'task.updated',
+      entityType: 'task',
+      entityId: task.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: task as unknown as Record<string, unknown>,
+    })
+    return task
+  }
+
+  async deleteTask(id: string, auditMeta: AuditMetadata) {
+    const previous = await this.taskReadPort.findById(id)
+    if (previous?.companyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, previous.companyId)
+    } else if (previous) {
+      assertSelfScoped(auditMeta.actor, 'assigneeId', previous.assigneeId)
+    }
+    const deleted = await this.taskReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'task.deleted',
+        entityType: 'task',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+
+    return deleted
   }
 }
 
-export class LeadFacade {
-  constructor(private readonly leads: Lead[] = seedLeads) {}
+export class DashboardFacade {
+  constructor(private readonly dashboardReadPort: DashboardReadPort) {}
 
-  async listLeads(companyId?: string) {
-    if (!companyId) {
-      return [...this.leads]
-    }
-
-    return this.leads.filter((lead) => lead.companyId === companyId)
+  async getSummary(): Promise<DashboardSummary> {
+    return this.dashboardReadPort.getSummary()
   }
 }
 
-export class ActivityFacade {
-  constructor(private readonly activities: Activity[] = seedActivities) {}
+export class AuditFacade {
+  constructor(private readonly auditReadPort: AuditReadPort) {}
 
-  async listActivities(companyId?: string) {
-    if (!companyId) {
-      return [...this.activities]
-    }
-
-    return this.activities.filter((activity) => activity.companyId === companyId)
-  }
-}
-
-export class TaskFacade {
-  constructor(private readonly tasks: Task[] = seedTasks) {}
-
-  async listTasks(companyId?: string) {
-    if (!companyId) {
-      return [...this.tasks]
-    }
-
-    return this.tasks.filter((task) => task.companyId === companyId)
+  async list(params: {
+    entityType?: string
+    entityId?: string
+    actorId?: string
+    requestId?: string
+    limit: number
+    offset: number
+  }): Promise<{ events: AuditEvent[]; total: number }> {
+    return this.auditReadPort.list(params)
   }
 }

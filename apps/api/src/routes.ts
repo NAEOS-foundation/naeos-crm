@@ -1,98 +1,479 @@
 import { Router } from 'express'
+import type { Request, Response } from 'express'
+import { AuditService } from '@naeos-crm/audit'
+import { DefaultAuthorizationService } from '@naeos-crm/auth'
+import {
+  buildErrorResponse,
+  buildPaginatedMeta,
+  buildSuccessMeta,
+} from '@naeos-crm/shared'
 
 import {
   ActivityFacade,
+  AuditFacade,
   CompanyFacade,
   ContactFacade,
-  InMemoryCompanyReadPort,
-  InMemoryContactReadPort,
+  DashboardFacade,
   LeadFacade,
   TaskFacade,
+  UserFacade,
 } from './service-layer'
+import {
+  PrismaActivityReadPort,
+  PrismaAuditReadPort,
+  PrismaAuditSink,
+  PrismaCompanyReadPort,
+  PrismaContactReadPort,
+  PrismaDashboardReadPort,
+  PrismaLeadReadPort,
+  PrismaTaskReadPort,
+  PrismaUserReadPort,
+} from './prisma-ports'
+import { ApiAuthGuard } from './auth'
+import { asyncHandler } from './middleware'
+import {
+  auditQuerySchema,
+  companyQuerySchema,
+  createActivitySchema,
+  createCompanySchema,
+  createContactSchema,
+  createLeadSchema,
+  createTaskSchema,
+  createUserSchema,
+  idParamSchema,
+  listByCompanyQuerySchema,
+  updateActivitySchema,
+  updateCompanySchema,
+  updateContactSchema,
+  updateLeadSchema,
+  updateTaskSchema,
+  updateUserSchema,
+} from './validation'
 
-const companyFacade = new CompanyFacade(new InMemoryCompanyReadPort())
-const contactFacade = new ContactFacade(new InMemoryContactReadPort())
-const leadFacade = new LeadFacade()
-const activityFacade = new ActivityFacade()
-const taskFacade = new TaskFacade()
+const auditSink = new PrismaAuditSink()
+const auditService = new AuditService(auditSink, new PrismaAuditReadPort())
 
-const buildMeta = () => ({
-  request_id: 'placeholder-request-id',
-  timestamp: new Date().toISOString(),
-})
+const companyReadPort = new PrismaCompanyReadPort()
+const userFacade = new UserFacade(new PrismaUserReadPort(), auditService)
+const companyFacade = new CompanyFacade(companyReadPort, auditService)
+const contactFacade = new ContactFacade(new PrismaContactReadPort(), auditService, companyReadPort)
+const leadFacade = new LeadFacade(new PrismaLeadReadPort(), auditService)
+const activityFacade = new ActivityFacade(new PrismaActivityReadPort(), auditService, companyReadPort)
+const taskFacade = new TaskFacade(new PrismaTaskReadPort(), auditService, companyReadPort)
+const dashboardFacade = new DashboardFacade(new PrismaDashboardReadPort())
+const auditFacade = new AuditFacade(new PrismaAuditReadPort())
+
+const guard = new ApiAuthGuard(new DefaultAuthorizationService())
 
 export const router = Router()
 
-router.get('/api/v1/companies', async (_req, res) => {
-  const data = await companyFacade.listCompanies()
+type Role = 'admin' | 'manager' | 'member'
+const toAuthRole = (role: string): Role => {
+  const normalized = role.toLowerCase()
+  if (normalized === 'admin' || normalized === 'manager' || normalized === 'member') {
+    return normalized
+  }
+  return 'member'
+}
 
-  res.json({
-    data,
-    meta: buildMeta(),
-  })
-})
-
-router.get('/api/v1/companies/:id', async (req, res) => {
-  const company = await companyFacade.getCompany(req.params.id)
-
-  if (!company) {
-    res.status(404).json({
-      error: {
-        code: 'COMPANY_NOT_FOUND',
-        message: `Company ${req.params.id} was not found`,
-      },
-    })
-    return
+async function requireAuth(
+  req: Request,
+  res: Response,
+  resource: string,
+  action: string,
+): Promise<boolean> {
+  if (!req.actor) {
+    res.status(401).json(buildErrorResponse('UNAUTHORIZED', 'Authentication required', req.requestId))
+    return false
   }
 
-  res.json({
-    data: company,
-    meta: buildMeta(),
+  const actor = {
+    id: req.actor.id,
+    email: req.actor.email,
+    roles: req.actor.roles.map(toAuthRole),
+  }
+
+  const decision = guard.authorize({ actor }, resource, action)
+
+  if (!decision.allow) {
+    try {
+      await auditService.record({
+        actorId: req.actor.id,
+        actorType: 'user',
+        action: `${resource}.${action}`,
+        entityType: resource,
+        entityId: req.params.id ?? 'unknown',
+        requestId: req.requestId,
+        source: 'api',
+        result: 'FAILURE',
+        reason: decision.reason,
+        policyVersion: decision.policyVersion,
+        authorization: { allowed: false, reason: decision.reason },
+      })
+    } catch (err) {
+      console.error('[audit] Failed to record denial', err)
+    }
+    res.status(403).json(buildErrorResponse('FORBIDDEN', `Permission denied for ${resource}:${action}`, req.requestId))
+    return false
+  }
+
+  return true
+}
+
+function auditMeta(req: Request) {
+  return {
+    actorId: req.actor?.id,
+    requestId: req.requestId,
+    actor: req.actor,
+  }
+}
+
+// ---------- Current actor ----------
+
+router.get('/api/v1/me', asyncHandler(async (req, res) => {
+  if (!req.actor) {
+    res.status(401).json(buildErrorResponse('UNAUTHORIZED', 'Authentication required', req.requestId))
+    return
+  }
+  res.json({ data: req.actor, meta: buildSuccessMeta(req.requestId) })
+}))
+
+// ---------- Users ----------
+
+router.get('/api/v1/users', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'user', 'read'))) return
+  const users = await userFacade.listUsers()
+  res.json({ data: users, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/users/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'user', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const user = await userFacade.getUser(id)
+  if (!user) {
+    res.status(404).json(buildErrorResponse('USER_NOT_FOUND', `User ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: user, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.post('/api/v1/users', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'user', 'write'))) return
+  const input = createUserSchema.parse(req.body)
+  const user = await userFacade.createUser(input, auditMeta(req))
+  res.status(201).json({ data: user, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/users/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'user', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateUserSchema.parse(req.body)
+  const user = await userFacade.updateUser(id, input, auditMeta(req))
+  if (!user) {
+    res.status(404).json(buildErrorResponse('USER_NOT_FOUND', `User ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: user, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/users/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'user', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await userFacade.deleteUser(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('USER_NOT_FOUND', `User ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Companies ----------
+
+router.get('/api/v1/companies', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'company', 'read'))) return
+  const query = companyQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await companyFacade.listCompanies({
+    status: query.status,
+    limit: query.limit,
+    offset,
   })
-})
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
+}))
 
-router.get('/api/v1/contacts', async (req, res) => {
-  const { companyId } = req.query
+router.post('/api/v1/companies', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'company', 'write'))) return
+  const input = createCompanySchema.parse(req.body)
+  const company = await companyFacade.createCompany(input, auditMeta(req))
+  res.status(201).json({ data: company, meta: buildSuccessMeta(req.requestId) })
+}))
 
-  const data = companyId
-    ? await contactFacade.listByCompany(String(companyId))
-    : await contactFacade.listContacts()
+router.get('/api/v1/companies/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'company', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const company = await companyFacade.getCompany(id)
+  if (!company) {
+    res.status(404).json(buildErrorResponse('COMPANY_NOT_FOUND', `Company ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: company, meta: buildSuccessMeta(req.requestId) })
+}))
 
-  res.json({
-    data,
-    meta: buildMeta(),
+router.put('/api/v1/companies/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'company', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateCompanySchema.parse(req.body)
+  const company = await companyFacade.updateCompany(id, input, auditMeta(req))
+  if (!company) {
+    res.status(404).json(buildErrorResponse('COMPANY_NOT_FOUND', `Company ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: company, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/companies/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'company', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await companyFacade.deleteCompany(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('COMPANY_NOT_FOUND', `Company ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Contacts ----------
+
+router.get('/api/v1/contacts', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'contact', 'read'))) return
+  const query = listByCompanyQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const result = query.companyId
+    ? await contactFacade.listByCompany(query.companyId, { limit: query.limit, offset })
+    : await contactFacade.listContacts({ limit: query.limit, offset })
+  res.json({ data: result.data, meta: buildPaginatedMeta(req.requestId, result.total, query.limit, offset) })
+}))
+
+router.post('/api/v1/contacts', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'contact', 'write'))) return
+  const input = createContactSchema.parse(req.body)
+  const contact = await contactFacade.createContact(input, auditMeta(req))
+  res.status(201).json({ data: contact, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/contacts/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'contact', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const contact = await contactFacade.getContact(id)
+  if (!contact) {
+    res.status(404).json(buildErrorResponse('CONTACT_NOT_FOUND', `Contact ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: contact, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/contacts/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'contact', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateContactSchema.parse(req.body)
+  const contact = await contactFacade.updateContact(id, input, auditMeta(req))
+  if (!contact) {
+    res.status(404).json(buildErrorResponse('CONTACT_NOT_FOUND', `Contact ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: contact, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/contacts/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'contact', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await contactFacade.deleteContact(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('CONTACT_NOT_FOUND', `Contact ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Leads ----------
+
+router.get('/api/v1/leads', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'lead', 'read'))) return
+  const query = listByCompanyQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const result = query.companyId
+    ? await leadFacade.listByCompany(query.companyId, { limit: query.limit, offset })
+    : await leadFacade.listLeads({ limit: query.limit, offset })
+  res.json({ data: result.data, meta: buildPaginatedMeta(req.requestId, result.total, query.limit, offset) })
+}))
+
+router.post('/api/v1/leads', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'lead', 'write'))) return
+  const input = createLeadSchema.parse(req.body)
+  const lead = await leadFacade.createLead(input, auditMeta(req))
+  res.status(201).json({ data: lead, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/leads/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'lead', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const lead = await leadFacade.getLead(id)
+  if (!lead) {
+    res.status(404).json(buildErrorResponse('LEAD_NOT_FOUND', `Lead ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: lead, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/leads/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'lead', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateLeadSchema.parse(req.body)
+  const lead = await leadFacade.updateLead(id, input, auditMeta(req))
+  if (!lead) {
+    res.status(404).json(buildErrorResponse('LEAD_NOT_FOUND', `Lead ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: lead, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/leads/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'lead', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await leadFacade.deleteLead(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('LEAD_NOT_FOUND', `Lead ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Activities ----------
+
+router.get('/api/v1/activities', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'activity', 'read'))) return
+  const query = listByCompanyQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const result = query.companyId
+    ? await activityFacade.listByCompany(query.companyId, { limit: query.limit, offset })
+    : await activityFacade.listActivities({ limit: query.limit, offset })
+  res.json({ data: result.data, meta: buildPaginatedMeta(req.requestId, result.total, query.limit, offset) })
+}))
+
+router.post('/api/v1/activities', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'activity', 'write'))) return
+  const input = createActivitySchema.parse(req.body)
+  const activity = await activityFacade.createActivity(input, auditMeta(req))
+  res.status(201).json({ data: activity, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/activities/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'activity', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const activity = await activityFacade.getActivity(id)
+  if (!activity) {
+    res.status(404).json(buildErrorResponse('ACTIVITY_NOT_FOUND', `Activity ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: activity, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/activities/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'activity', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateActivitySchema.parse(req.body)
+  const activity = await activityFacade.updateActivity(id, input, auditMeta(req))
+  if (!activity) {
+    res.status(404).json(buildErrorResponse('ACTIVITY_NOT_FOUND', `Activity ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: activity, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/activities/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'activity', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await activityFacade.deleteActivity(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('ACTIVITY_NOT_FOUND', `Activity ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Tasks ----------
+
+router.get('/api/v1/tasks', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'task', 'read'))) return
+  const query = listByCompanyQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const result = query.companyId
+    ? await taskFacade.listByCompany(query.companyId, { limit: query.limit, offset })
+    : await taskFacade.listTasks({ limit: query.limit, offset })
+  res.json({ data: result.data, meta: buildPaginatedMeta(req.requestId, result.total, query.limit, offset) })
+}))
+
+router.post('/api/v1/tasks', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'task', 'write'))) return
+  const input = createTaskSchema.parse(req.body)
+  const task = await taskFacade.createTask(input, auditMeta(req))
+  res.status(201).json({ data: task, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/tasks/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'task', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const task = await taskFacade.getTask(id)
+  if (!task) {
+    res.status(404).json(buildErrorResponse('TASK_NOT_FOUND', `Task ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: task, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/tasks/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'task', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateTaskSchema.parse(req.body)
+  const task = await taskFacade.updateTask(id, input, auditMeta(req))
+  if (!task) {
+    res.status(404).json(buildErrorResponse('TASK_NOT_FOUND', `Task ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: task, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/tasks/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'task', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await taskFacade.deleteTask(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('TASK_NOT_FOUND', `Task ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Dashboard ----------
+
+router.get('/api/v1/dashboard', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'dashboard', 'read'))) return
+  const summary = await dashboardFacade.getSummary()
+  res.json({ data: summary, meta: buildSuccessMeta(req.requestId) })
+}))
+
+// ---------- Audit ----------
+
+router.get('/api/v1/audit', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'audit', 'read'))) return
+  const query = auditQuerySchema.parse(req.query)
+  const { events, total } = await auditFacade.list({
+    entityType: query.entityType,
+    entityId: query.entityId,
+    actorId: query.actorId,
+    requestId: query.requestId,
+    limit: query.limit,
+    offset: (query.page - 1) * query.limit,
   })
-})
-
-router.get('/api/v1/leads', async (req, res) => {
-  const { companyId } = req.query
-
-  const data = await leadFacade.listLeads(companyId ? String(companyId) : undefined)
-
-  res.json({
-    data,
-    meta: buildMeta(),
-  })
-})
-
-router.get('/api/v1/activities', async (req, res) => {
-  const { companyId } = req.query
-
-  const data = await activityFacade.listActivities(companyId ? String(companyId) : undefined)
-
-  res.json({
-    data,
-    meta: buildMeta(),
-  })
-})
-
-router.get('/api/v1/tasks', async (req, res) => {
-  const { companyId } = req.query
-
-  const data = await taskFacade.listTasks(companyId ? String(companyId) : undefined)
-
-  res.json({
-    data,
-    meta: buildMeta(),
-  })
-})
+  res.json({ data: events, meta: buildPaginatedMeta(req.requestId, total, query.limit, (query.page - 1) * query.limit) })
+}))

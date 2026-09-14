@@ -1,4 +1,4 @@
-import { AuthenticatedActor, AuthorizationService } from '@naeos-crm/auth'
+import { AuthenticatedActor, AuthorizationDecision, AuthorizationService } from '@naeos-crm/auth'
 
 export interface RequestContext {
   actor?: AuthenticatedActor
@@ -12,12 +12,11 @@ export class ApiAuthGuard {
     resource: string,
     action: string,
     metadata?: Record<string, unknown>,
-  ): { allowed: boolean } {
+  ): AuthorizationDecision {
     if (!context.actor) {
-      return { allowed: false }
+      return { allow: false, reason: 'authentication-required' }
     }
 
-    const decision = this.authz.authorize(context.actor, resource, action, metadata)
-    return { allowed: decision.allow }
+    return this.authz.authorize(context.actor, resource, action, metadata)
   }
 }
