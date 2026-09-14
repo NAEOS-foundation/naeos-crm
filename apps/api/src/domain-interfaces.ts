@@ -1,3 +1,5 @@
+import type { Activity, Lead, Task } from '@naeos-crm/domain'
+
 export interface CompanyReadPort {
   findById(id: string): Promise<{ id: string; name: string } | null>
   list(): Promise<Array<{ id: string; name: string }>>

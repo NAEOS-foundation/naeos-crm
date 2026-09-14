@@ -218,39 +218,3 @@ export class TaskFacade {
     return this.taskReadPort.listByCompany(companyId)
   }
 }
-
-export class LeadFacade {
-  constructor(private readonly leads: Lead[] = seedLeads) {}
-
-  async listLeads(companyId?: string) {
-    if (!companyId) {
-      return [...this.leads]
-    }
-
-    return this.leads.filter((lead) => lead.companyId === companyId)
-  }
-}
-
-export class ActivityFacade {
-  constructor(private readonly activities: Activity[] = seedActivities) {}
-
-  async listActivities(companyId?: string) {
-    if (!companyId) {
-      return [...this.activities]
-    }
-
-    return this.activities.filter((activity) => activity.companyId === companyId)
-  }
-}
-
-export class TaskFacade {
-  constructor(private readonly tasks: Task[] = seedTasks) {}
-
-  async listTasks(companyId?: string) {
-    if (!companyId) {
-      return [...this.tasks]
-    }
-
-    return this.tasks.filter((task) => task.companyId === companyId)
-  }
-}
