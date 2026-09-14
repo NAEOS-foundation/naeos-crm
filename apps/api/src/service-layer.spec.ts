@@ -37,7 +37,7 @@ function createCompanyPort(): CompanyReadPort & { storage: Company[] } {
       return storage.find((c) => c.id === id) ?? null
     },
     async list() {
-      return [...storage]
+      return { data: [...storage], total: storage.length }
     },
     async create(input) {
       const company: Company = {
@@ -103,14 +103,14 @@ describe('Phase 1 write flow', () => {
     const audit = createAuditService()
 
     const contactStore: ContactReadPort = {
-      async findById(id) {
+      async findById(_id) {
         return null
       },
       async list() {
-        return []
+        return { data: [], total: 0 }
       },
       async listByCompany() {
-        return []
+        return { data: [], total: 0 }
       },
       async create(input) {
         return { ...(input as any), id: 'contact-1', createdAt: new Date(), updatedAt: new Date() }
@@ -118,19 +118,19 @@ describe('Phase 1 write flow', () => {
       async update(id, input) {
         return { ...(input as any), id, createdAt: new Date(), updatedAt: new Date() }
       },
-      async delete(id) {
+      async delete(_id) {
         return true
       },
     }
     const leadStore: LeadReadPort = {
-      async findById(id) {
+      async findById(_id) {
         return null
       },
       async list() {
-        return []
+        return { data: [], total: 0 }
       },
       async listByCompany() {
-        return []
+        return { data: [], total: 0 }
       },
       async create(input) {
         return { ...(input as any), id: 'lead-1', createdAt: new Date(), updatedAt: new Date() }
@@ -138,19 +138,19 @@ describe('Phase 1 write flow', () => {
       async update(id, input) {
         return { ...(input as any), id, createdAt: new Date(), updatedAt: new Date() }
       },
-      async delete(id) {
+      async delete(_id) {
         return true
       },
     }
     const activityStore: ActivityReadPort = {
-      async findById(id) {
+      async findById(_id) {
         return null
       },
       async list() {
-        return []
+        return { data: [], total: 0 }
       },
       async listByCompany() {
-        return []
+        return { data: [], total: 0 }
       },
       async create(input) {
         return { ...(input as any), id: 'activity-1', createdAt: new Date() }
@@ -158,19 +158,19 @@ describe('Phase 1 write flow', () => {
       async update(id, input) {
         return { ...(input as any), id, createdAt: new Date() }
       },
-      async delete(id) {
+      async delete(_id) {
         return true
       },
     }
     const taskStore: TaskReadPort = {
-      async findById(id) {
+      async findById(_id) {
         return null
       },
       async list() {
-        return []
+        return { data: [], total: 0 }
       },
       async listByCompany() {
-        return []
+        return { data: [], total: 0 }
       },
       async create(input) {
         return { ...(input as any), id: 'task-1', createdAt: new Date(), updatedAt: new Date() }
@@ -178,16 +178,21 @@ describe('Phase 1 write flow', () => {
       async update(id, input) {
         return { ...(input as any), id, createdAt: new Date(), updatedAt: new Date() }
       },
-      async delete(id) {
+      async delete(_id) {
         return true
       },
     }
 
-    const meta = { actorId: 'user-9', requestId: 'req-1' }
-    const contactFacade = new ContactFacade(contactStore, audit)
+    const meta = {
+      actorId: 'user-9',
+      requestId: 'req-1',
+      actor: { id: 'user-9', roles: ['admin'] as string[] },
+    }
+    const companyStore = createCompanyPort()
+    const contactFacade = new ContactFacade(contactStore, audit, companyStore)
     const leadFacade = new LeadFacade(leadStore, audit)
-    const activityFacade = new ActivityFacade(activityStore, audit)
-    const taskFacade = new TaskFacade(taskStore, audit)
+    const activityFacade = new ActivityFacade(activityStore, audit, companyStore)
+    const taskFacade = new TaskFacade(taskStore, audit, companyStore)
 
     const contact = await contactFacade.createContact(
       {
@@ -278,10 +283,10 @@ describe('Phase 1 write flow', () => {
     const sink = noopSink()
     const audit = createAuditService(sink)
     const userStore: UserReadPort = {
-      async findById(id) {
+      async findById(_id) {
         return null
       },
-      async findByEmail(email) {
+      async findByEmail(_email) {
         return null
       },
       async list() {
@@ -293,7 +298,7 @@ describe('Phase 1 write flow', () => {
       async update(id, input) {
         return { ...(input as any), id, createdAt: new Date(), updatedAt: new Date() }
       },
-      async delete(id) {
+      async delete(_id) {
         return true
       },
     }

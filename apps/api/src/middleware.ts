@@ -2,11 +2,14 @@ import type { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import type { AuthenticatedActor } from '@naeos-crm/auth'
 import { generateRequestId, buildErrorResponse } from '@naeos-crm/shared'
+import { HttpError } from './errors'
 
 const AUTH_SECRET = process.env.AUTH_SECRET || process.env.AUTH_DEV_SECRET || 'dev-secret'
 const authDisabled = () => process.env.AUTH_DISABLED === 'true'
+const isProduction = () => (process.env.NODE_ENV ?? 'development') === 'production'
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       requestId?: string
@@ -31,7 +34,7 @@ export function requestIdMiddleware(req: Request, _res: Response, next: NextFunc
 export function authMiddleware(req: Request, res: Response, next: NextFunction) {
   if (authDisabled()) {
     const devUserHeader = req.headers['x-naeos-dev-user']
-    if (devUserHeader && typeof devUserHeader === 'string') {
+    if (devUserHeader && typeof devUserHeader === 'string' && !isProduction()) {
       try {
         req.actor = JSON.parse(devUserHeader) as AuthenticatedActor
       } catch {
@@ -75,10 +78,25 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction) {
   console.error('[API Error]', req.requestId, err.message)
 
+  if (err instanceof HttpError) {
+    res.status(err.status).json(buildErrorResponse(err.code, err.message, req.requestId))
+    return
+  }
+
   if (err.name === 'ZodError') {
     res.status(400).json(
       buildErrorResponse('VALIDATION_ERROR', err.message, req.requestId),
     )
+    return
+  }
+
+  const bodyParserError = err as Error & { type?: string; status?: number }
+  if (bodyParserError.type === 'entity.too.large') {
+    res.status(413).json(buildErrorResponse('PAYLOAD_TOO_LARGE', 'Request body is too large', req.requestId))
+    return
+  }
+  if (err instanceof SyntaxError && bodyParserError.status === 400) {
+    res.status(400).json(buildErrorResponse('BAD_REQUEST', 'Malformed JSON body', req.requestId))
     return
   }
 

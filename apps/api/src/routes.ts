@@ -53,12 +53,13 @@ import {
 const auditSink = new PrismaAuditSink()
 const auditService = new AuditService(auditSink, new PrismaAuditReadPort())
 
+const companyReadPort = new PrismaCompanyReadPort()
 const userFacade = new UserFacade(new PrismaUserReadPort(), auditService)
-const companyFacade = new CompanyFacade(new PrismaCompanyReadPort(), auditService)
-const contactFacade = new ContactFacade(new PrismaContactReadPort(), auditService)
+const companyFacade = new CompanyFacade(companyReadPort, auditService)
+const contactFacade = new ContactFacade(new PrismaContactReadPort(), auditService, companyReadPort)
 const leadFacade = new LeadFacade(new PrismaLeadReadPort(), auditService)
-const activityFacade = new ActivityFacade(new PrismaActivityReadPort(), auditService)
-const taskFacade = new TaskFacade(new PrismaTaskReadPort(), auditService)
+const activityFacade = new ActivityFacade(new PrismaActivityReadPort(), auditService, companyReadPort)
+const taskFacade = new TaskFacade(new PrismaTaskReadPort(), auditService, companyReadPort)
 const dashboardFacade = new DashboardFacade(new PrismaDashboardReadPort())
 const auditFacade = new AuditFacade(new PrismaAuditReadPort())
 
@@ -95,19 +96,23 @@ async function requireAuth(
   const decision = guard.authorize({ actor }, resource, action)
 
   if (!decision.allow) {
-    await auditService.record({
-      actorId: req.actor.id,
-      actorType: 'user',
-      action: `${resource}.${action}`,
-      entityType: resource,
-      entityId: req.params.id ?? 'unknown',
-      requestId: req.requestId,
-      source: 'api',
-      result: 'FAILURE',
-      reason: decision.reason,
-      policyVersion: decision.policyVersion,
-      authorization: { allowed: false, reason: decision.reason },
-    })
+    try {
+      await auditService.record({
+        actorId: req.actor.id,
+        actorType: 'user',
+        action: `${resource}.${action}`,
+        entityType: resource,
+        entityId: req.params.id ?? 'unknown',
+        requestId: req.requestId,
+        source: 'api',
+        result: 'FAILURE',
+        reason: decision.reason,
+        policyVersion: decision.policyVersion,
+        authorization: { allowed: false, reason: decision.reason },
+      })
+    } catch (err) {
+      console.error('[audit] Failed to record denial', err)
+    }
     res.status(403).json(buildErrorResponse('FORBIDDEN', `Permission denied for ${resource}:${action}`, req.requestId))
     return false
   }
@@ -119,8 +124,19 @@ function auditMeta(req: Request) {
   return {
     actorId: req.actor?.id,
     requestId: req.requestId,
+    actor: req.actor,
   }
 }
+
+// ---------- Current actor ----------
+
+router.get('/api/v1/me', asyncHandler(async (req, res) => {
+  if (!req.actor) {
+    res.status(401).json(buildErrorResponse('UNAUTHORIZED', 'Authentication required', req.requestId))
+    return
+  }
+  res.json({ data: req.actor, meta: buildSuccessMeta(req.requestId) })
+}))
 
 // ---------- Users ----------
 
@@ -176,9 +192,13 @@ router.delete('/api/v1/users/:id', asyncHandler(async (req, res) => {
 router.get('/api/v1/companies', asyncHandler(async (req, res) => {
   if (!(await requireAuth(req, res, 'company', 'read'))) return
   const query = companyQuerySchema.parse(req.query)
-  const data = await companyFacade.listCompanies({ status: query.status })
-  const total = data.length
-  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, (query.page - 1) * query.limit) })
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await companyFacade.listCompanies({
+    status: query.status,
+    limit: query.limit,
+    offset,
+  })
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
 }))
 
 router.post('/api/v1/companies', asyncHandler(async (req, res) => {
@@ -227,10 +247,11 @@ router.delete('/api/v1/companies/:id', asyncHandler(async (req, res) => {
 router.get('/api/v1/contacts', asyncHandler(async (req, res) => {
   if (!(await requireAuth(req, res, 'contact', 'read'))) return
   const query = listByCompanyQuerySchema.parse(req.query)
-  const data = query.companyId
-    ? await contactFacade.listByCompany(query.companyId)
-    : await contactFacade.listContacts()
-  res.json({ data, meta: buildSuccessMeta(req.requestId) })
+  const offset = (query.page - 1) * query.limit
+  const result = query.companyId
+    ? await contactFacade.listByCompany(query.companyId, { limit: query.limit, offset })
+    : await contactFacade.listContacts({ limit: query.limit, offset })
+  res.json({ data: result.data, meta: buildPaginatedMeta(req.requestId, result.total, query.limit, offset) })
 }))
 
 router.post('/api/v1/contacts', asyncHandler(async (req, res) => {
@@ -279,10 +300,11 @@ router.delete('/api/v1/contacts/:id', asyncHandler(async (req, res) => {
 router.get('/api/v1/leads', asyncHandler(async (req, res) => {
   if (!(await requireAuth(req, res, 'lead', 'read'))) return
   const query = listByCompanyQuerySchema.parse(req.query)
-  const data = query.companyId
-    ? await leadFacade.listByCompany(query.companyId)
-    : await leadFacade.listLeads()
-  res.json({ data, meta: buildSuccessMeta(req.requestId) })
+  const offset = (query.page - 1) * query.limit
+  const result = query.companyId
+    ? await leadFacade.listByCompany(query.companyId, { limit: query.limit, offset })
+    : await leadFacade.listLeads({ limit: query.limit, offset })
+  res.json({ data: result.data, meta: buildPaginatedMeta(req.requestId, result.total, query.limit, offset) })
 }))
 
 router.post('/api/v1/leads', asyncHandler(async (req, res) => {
@@ -331,10 +353,11 @@ router.delete('/api/v1/leads/:id', asyncHandler(async (req, res) => {
 router.get('/api/v1/activities', asyncHandler(async (req, res) => {
   if (!(await requireAuth(req, res, 'activity', 'read'))) return
   const query = listByCompanyQuerySchema.parse(req.query)
-  const data = query.companyId
-    ? await activityFacade.listByCompany(query.companyId)
-    : await activityFacade.listActivities()
-  res.json({ data, meta: buildSuccessMeta(req.requestId) })
+  const offset = (query.page - 1) * query.limit
+  const result = query.companyId
+    ? await activityFacade.listByCompany(query.companyId, { limit: query.limit, offset })
+    : await activityFacade.listActivities({ limit: query.limit, offset })
+  res.json({ data: result.data, meta: buildPaginatedMeta(req.requestId, result.total, query.limit, offset) })
 }))
 
 router.post('/api/v1/activities', asyncHandler(async (req, res) => {
@@ -383,10 +406,11 @@ router.delete('/api/v1/activities/:id', asyncHandler(async (req, res) => {
 router.get('/api/v1/tasks', asyncHandler(async (req, res) => {
   if (!(await requireAuth(req, res, 'task', 'read'))) return
   const query = listByCompanyQuerySchema.parse(req.query)
-  const data = query.companyId
-    ? await taskFacade.listByCompany(query.companyId)
-    : await taskFacade.listTasks()
-  res.json({ data, meta: buildSuccessMeta(req.requestId) })
+  const offset = (query.page - 1) * query.limit
+  const result = query.companyId
+    ? await taskFacade.listByCompany(query.companyId, { limit: query.limit, offset })
+    : await taskFacade.listTasks({ limit: query.limit, offset })
+  res.json({ data: result.data, meta: buildPaginatedMeta(req.requestId, result.total, query.limit, offset) })
 }))
 
 router.post('/api/v1/tasks', asyncHandler(async (req, res) => {

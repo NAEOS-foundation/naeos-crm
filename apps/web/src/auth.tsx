@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
-import { api, setAuthToken, setDevActor, Actor } from './api'
+import { api, initSession, setAuthToken, setDevActor, Actor } from './api'
 
 interface AuthContextValue {
   actor: Actor | null
@@ -12,13 +12,11 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [actor, setActor] = useState<Actor | null>(() => {
-    const stored = localStorage.getItem('naeos-actor')
-    return stored ? (JSON.parse(stored) as Actor) : null
-  })
+  const [actor, setActor] = useState<Actor | null>(() => initSession())
 
   const login = useCallback(async (token: string, nextActor: Actor) => {
     setAuthToken(token)
+    setDevActor(null)
     localStorage.setItem('naeos-token', token)
     localStorage.setItem('naeos-actor', JSON.stringify(nextActor))
     setActor(nextActor)
@@ -33,8 +31,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthToken(null)
     setDevActor(nextActor)
     localStorage.setItem('naeos-actor', JSON.stringify(nextActor))
-    setActor(nextActor)
-    await api('/health').catch(() => undefined)
+    try {
+      await api('/api/v1/me')
+      setActor(nextActor)
+    } catch (err) {
+      localStorage.removeItem('naeos-actor')
+      setDevActor(null)
+      throw err
+    }
   }, [])
 
   const logout = useCallback(() => {

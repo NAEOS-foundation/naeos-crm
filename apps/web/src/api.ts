@@ -27,6 +27,23 @@ export function setDevActor(actor: Actor | null) {
   devActor = actor
 }
 
+export function initSession(): Actor | null {
+  if (typeof localStorage === 'undefined') return null
+  let actor: Actor | null = null
+  const actorRaw = localStorage.getItem('naeos-actor')
+  if (actorRaw) {
+    try {
+      actor = JSON.parse(actorRaw) as Actor
+    } catch {
+      actor = null
+    }
+  }
+  const token = localStorage.getItem('naeos-token')
+  authToken = token
+  devActor = token ? null : actor
+  return actor
+}
+
 interface RequestOptions {
   method?: string
   body?: unknown

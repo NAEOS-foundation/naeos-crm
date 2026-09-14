@@ -102,6 +102,7 @@ model Contact {
   updatedAt DateTime      @updatedAt
 
   company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  activities Activity[]
 
   @@index([companyId])
   @@index([status])
@@ -137,9 +138,11 @@ model Activity {
   createdAt  DateTime     @default(now())
 
   company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
   owner   User?    @relation("ActivityAuthor", fields: [ownerId], references: [id])
 
   @@index([companyId])
+  @@index([contactId])
   @@index([ownerId])
   @@index([occurredAt])
 }

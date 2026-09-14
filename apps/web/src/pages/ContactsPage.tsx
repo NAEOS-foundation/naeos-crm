@@ -3,6 +3,7 @@ import { api } from '../api'
 import { ErrorState, LoadingState, Modal, PageHeader, StatusBadge, Table } from '../components/ui'
 import { useFetch } from '../useFetch'
 import { useAuth } from '../auth'
+import { can, isMemberOnly } from '../permissions'
 
 interface Contact {
   id: string
@@ -24,7 +25,7 @@ const EMPTY_FORM: ContactForm = { fullName: '', email: '', role: '', status: 'AC
 
 export function ContactsPage() {
   const { data, loading, error, reload } = useFetch<{ data: Contact[] }>('/api/v1/contacts')
-  const companies = useFetch<{ data: { id: string; name: string }[] }>('/api/v1/companies')
+  const companies = useFetch<{ data: { id: string; name: string; ownerId?: string }[] }>('/api/v1/companies')
   const { actor } = useAuth()
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<ContactForm>(EMPTY_FORM)
@@ -34,16 +35,26 @@ export function ContactsPage() {
   if (loading || companies.loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
 
-  const canWrite = actor?.roles.some((role) => ['admin', 'manager'].includes(role.toLowerCase()) || role.toLowerCase() === 'member')
+  const canWrite = can(actor, 'contact', 'write')
+  const availableCompanies = isMemberOnly(actor)
+    ? (companies.data?.data ?? []).filter((company) => company.ownerId === actor?.id)
+    : (companies.data?.data ?? [])
 
   const companyNames = new Map((companies.data?.data ?? []).map((company) => [company.id, company.name]))
 
   async function submit() {
     setFormError(null)
     try {
+      const body: Record<string, string> = {
+        companyId,
+        fullName: form.fullName,
+        status: form.status,
+      }
+      if (form.email.trim()) body.email = form.email.trim()
+      if (form.role.trim()) body.role = form.role.trim()
       await api('/api/v1/contacts', {
         method: 'POST',
-        body: { ...form, companyId },
+        body,
       })
       setShowCreate(false)
       setForm(EMPTY_FORM)
@@ -91,7 +102,7 @@ export function ContactsPage() {
           <div className="form-group">
             <label htmlFor="contact-company">Company</label>
             <select id="contact-company" value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
-              {(companies.data?.data ?? []).map((company) => (
+              {(availableCompanies.length > 0 ? availableCompanies : companies.data?.data ?? []).map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
                 </option>

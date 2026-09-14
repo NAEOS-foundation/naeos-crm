@@ -4,7 +4,8 @@
     "lib": ["DOM", "DOM.Iterable", "ES2020"],
     "jsx": "react-jsx",
     "module": "ESNext",
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "noEmit": true
   },
   "include": ["src"]
 }

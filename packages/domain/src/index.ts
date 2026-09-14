@@ -67,7 +67,7 @@ export interface Task {
   companyId?: string
   assigneeId?: string
   subject: string
-  dueAt?: Date
+  dueAt?: Date | null
   status: TaskStatus
   createdAt: Date
   updatedAt: Date

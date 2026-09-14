@@ -7,7 +7,7 @@ import type {
   User,
   DashboardSummary,
 } from '@naeos-crm/domain'
-import type { AuditService } from '@naeos-crm/audit'
+import type { AuditService, AuditEvent } from '@naeos-crm/audit'
 
 import type {
   ActivityReadPort,
@@ -16,9 +16,63 @@ import type {
   ContactReadPort,
   DashboardReadPort,
   LeadReadPort,
+  PageQuery,
   TaskReadPort,
   UserReadPort,
 } from './domain-interfaces'
+import { forbidden, HttpError } from './errors'
+
+interface AuditMetadata {
+  actorId?: string
+  requestId?: string
+  actor?: { id: string; roles: string[] }
+}
+
+async function auditSafely(
+  audit: AuditService,
+  event: Parameters<AuditService['record']>[0],
+): Promise<void> {
+  try {
+    await audit.record(event)
+  } catch (err) {
+    console.error('[audit] Failed to record event', err)
+  }
+}
+
+function isPrivileged(actor?: { id: string; roles: string[] }): boolean {
+  return (
+    actor?.roles.some((role) => {
+      const normalized = role.toLowerCase()
+      return normalized === 'admin' || normalized === 'manager'
+    }) ?? false
+  )
+}
+
+async function assertCompanyAccess(
+  companyReadPort: CompanyReadPort,
+  actor: AuditMetadata['actor'],
+  companyId: string,
+) {
+  if (!actor) throw forbidden('No authenticated actor')
+  if (isPrivileged(actor)) return
+  const company = await companyReadPort.findById(companyId)
+  if (!company) {
+    throw new HttpError(404, 'COMPANY_NOT_FOUND', `Company ${companyId} was not found`)
+  }
+  if (company.ownerId === actor.id) return
+  throw forbidden('You do not have access to records for this company')
+}
+
+function assertSelfScoped(
+  actor: AuditMetadata['actor'],
+  field: 'ownerId' | 'assigneeId',
+  value: string | undefined,
+) {
+  if (!actor) throw forbidden('No authenticated actor')
+  if (isPrivileged(actor)) return
+  if (value && value === actor.id) return
+  throw forbidden(`You cannot modify records you do not own`)
+}
 
 export class UserFacade {
   constructor(
@@ -40,7 +94,7 @@ export class UserFacade {
 
   async createUser(input: Omit<User, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
     const user = await this.userReadPort.create(input)
-    await this.audit.record({
+    await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
       action: 'user.created',
       entityType: 'user',
@@ -58,14 +112,14 @@ export class UserFacade {
 
     if (!user) return null
 
-    await this.audit.record({
+    await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
       action: 'user.updated',
       entityType: 'user',
       entityId: user.id,
       requestId: auditMeta.requestId,
       result: 'SUCCESS',
-      previousState: previous as unknown as Record<string, unknown>,
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
       newState: user as unknown as Record<string, unknown>,
     })
     return user
@@ -76,7 +130,7 @@ export class UserFacade {
     const deleted = await this.userReadPort.delete(id)
 
     if (deleted && previous) {
-      await this.audit.record({
+      await auditSafely(this.audit, {
         actorId: auditMeta.actorId,
         action: 'user.deleted',
         entityType: 'user',
@@ -101,13 +155,13 @@ export class CompanyFacade {
     return this.companyReadPort.findById(id)
   }
 
-  async listCompanies(params?: { status?: Company['status'] }) {
+  async listCompanies(params?: { status?: Company['status'] } & PageQuery) {
     return this.companyReadPort.list(params)
   }
 
   async createCompany(input: Omit<Company, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
     const company = await this.companyReadPort.create(input)
-    await this.audit.record({
+    await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
       action: 'company.created',
       entityType: 'company',
@@ -125,14 +179,14 @@ export class CompanyFacade {
 
     if (!company) return null
 
-    await this.audit.record({
+    await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
       action: 'company.updated',
       entityType: 'company',
       entityId: company.id,
       requestId: auditMeta.requestId,
       result: 'SUCCESS',
-      previousState: previous as unknown as Record<string, unknown>,
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
       newState: company as unknown as Record<string, unknown>,
     })
     return company
@@ -143,7 +197,7 @@ export class CompanyFacade {
     const deleted = await this.companyReadPort.delete(id)
 
     if (deleted && previous) {
-      await this.audit.record({
+      await auditSafely(this.audit, {
         actorId: auditMeta.actorId,
         action: 'company.deleted',
         entityType: 'company',
@@ -162,23 +216,25 @@ export class ContactFacade {
   constructor(
     private readonly contactReadPort: ContactReadPort,
     private readonly audit: AuditService,
+    private readonly companyReadPort: CompanyReadPort,
   ) {}
 
   async getContact(id: string) {
     return this.contactReadPort.findById(id)
   }
 
-  async listContacts() {
-    return this.contactReadPort.list()
+  async listContacts(params?: PageQuery) {
+    return this.contactReadPort.list(params)
   }
 
-  async listByCompany(companyId: string) {
-    return this.contactReadPort.listByCompany(companyId)
+  async listByCompany(companyId: string, params?: PageQuery) {
+    return this.contactReadPort.listByCompany(companyId, params)
   }
 
   async createContact(input: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId)
     const contact = await this.contactReadPort.create(input)
-    await this.audit.record({
+    await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
       action: 'contact.created',
       entityType: 'contact',
@@ -192,18 +248,19 @@ export class ContactFacade {
 
   async updateContact(id: string, input: Partial<Contact>, auditMeta: AuditMetadata) {
     const previous = await this.contactReadPort.findById(id)
+    await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId ?? previous?.companyId ?? '')
     const contact = await this.contactReadPort.update(id, input)
 
     if (!contact) return null
 
-    await this.audit.record({
+    await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
       action: 'contact.updated',
       entityType: 'contact',
       entityId: contact.id,
       requestId: auditMeta.requestId,
       result: 'SUCCESS',
-      previousState: previous as unknown as Record<string, unknown>,
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
       newState: contact as unknown as Record<string, unknown>,
     })
     return contact
@@ -211,10 +268,13 @@ export class ContactFacade {
 
   async deleteContact(id: string, auditMeta: AuditMetadata) {
     const previous = await this.contactReadPort.findById(id)
+    if (previous) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, previous.companyId)
+    }
     const deleted = await this.contactReadPort.delete(id)
 
     if (deleted && previous) {
-      await this.audit.record({
+      await auditSafely(this.audit, {
         actorId: auditMeta.actorId,
         action: 'contact.deleted',
         entityType: 'contact',
@@ -239,17 +299,17 @@ export class LeadFacade {
     return this.leadReadPort.findById(id)
   }
 
-  async listLeads() {
-    return this.leadReadPort.list()
+  async listLeads(params?: PageQuery) {
+    return this.leadReadPort.list(params)
   }
 
-  async listByCompany(companyId: string) {
-    return this.leadReadPort.listByCompany(companyId)
+  async listByCompany(companyId: string, params?: PageQuery) {
+    return this.leadReadPort.listByCompany(companyId, params)
   }
 
   async createLead(input: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
     const lead = await this.leadReadPort.create(input)
-    await this.audit.record({
+    await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
       action: 'lead.created',
       entityType: 'lead',
@@ -267,14 +327,14 @@ export class LeadFacade {
 
     if (!lead) return null
 
-    await this.audit.record({
+    await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
       action: 'lead.updated',
       entityType: 'lead',
       entityId: lead.id,
       requestId: auditMeta.requestId,
       result: 'SUCCESS',
-      previousState: previous as unknown as Record<string, unknown>,
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
       newState: lead as unknown as Record<string, unknown>,
     })
     return lead
@@ -285,7 +345,7 @@ export class LeadFacade {
     const deleted = await this.leadReadPort.delete(id)
 
     if (deleted && previous) {
-      await this.audit.record({
+      await auditSafely(this.audit, {
         actorId: auditMeta.actorId,
         action: 'lead.deleted',
         entityType: 'lead',
@@ -304,23 +364,29 @@ export class ActivityFacade {
   constructor(
     private readonly activityReadPort: ActivityReadPort,
     private readonly audit: AuditService,
+    private readonly companyReadPort: CompanyReadPort,
   ) {}
 
   async getActivity(id: string) {
     return this.activityReadPort.findById(id)
   }
 
-  async listActivities() {
-    return this.activityReadPort.list()
+  async listActivities(params?: PageQuery) {
+    return this.activityReadPort.list(params)
   }
 
-  async listByCompany(companyId: string) {
-    return this.activityReadPort.listByCompany(companyId)
+  async listByCompany(companyId: string, params?: PageQuery) {
+    return this.activityReadPort.listByCompany(companyId, params)
   }
 
   async createActivity(input: Omit<Activity, 'id' | 'createdAt'>, auditMeta: AuditMetadata) {
+    if (input.companyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId)
+    } else {
+      assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
+    }
     const activity = await this.activityReadPort.create(input)
-    await this.audit.record({
+    await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
       action: 'activity.created',
       entityType: 'activity',
@@ -334,18 +400,24 @@ export class ActivityFacade {
 
   async updateActivity(id: string, input: Partial<Activity>, auditMeta: AuditMetadata) {
     const previous = await this.activityReadPort.findById(id)
+    const targetCompanyId = input.companyId ?? previous?.companyId
+    if (targetCompanyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, targetCompanyId)
+    } else {
+      assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId ?? previous?.ownerId)
+    }
     const activity = await this.activityReadPort.update(id, input)
 
     if (!activity) return null
 
-    await this.audit.record({
+    await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
       action: 'activity.updated',
       entityType: 'activity',
       entityId: activity.id,
       requestId: auditMeta.requestId,
       result: 'SUCCESS',
-      previousState: previous as unknown as Record<string, unknown>,
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
       newState: activity as unknown as Record<string, unknown>,
     })
     return activity
@@ -353,10 +425,15 @@ export class ActivityFacade {
 
   async deleteActivity(id: string, auditMeta: AuditMetadata) {
     const previous = await this.activityReadPort.findById(id)
+    if (previous?.companyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, previous.companyId)
+    } else if (previous) {
+      assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
+    }
     const deleted = await this.activityReadPort.delete(id)
 
     if (deleted && previous) {
-      await this.audit.record({
+      await auditSafely(this.audit, {
         actorId: auditMeta.actorId,
         action: 'activity.deleted',
         entityType: 'activity',
@@ -375,23 +452,29 @@ export class TaskFacade {
   constructor(
     private readonly taskReadPort: TaskReadPort,
     private readonly audit: AuditService,
+    private readonly companyReadPort: CompanyReadPort,
   ) {}
 
   async getTask(id: string) {
     return this.taskReadPort.findById(id)
   }
 
-  async listTasks() {
-    return this.taskReadPort.list()
+  async listTasks(params?: PageQuery) {
+    return this.taskReadPort.list(params)
   }
 
-  async listByCompany(companyId: string) {
-    return this.taskReadPort.listByCompany(companyId)
+  async listByCompany(companyId: string, params?: PageQuery) {
+    return this.taskReadPort.listByCompany(companyId, params)
   }
 
   async createTask(input: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    if (input.companyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId)
+    } else {
+      assertSelfScoped(auditMeta.actor, 'assigneeId', input.assigneeId)
+    }
     const task = await this.taskReadPort.create(input)
-    await this.audit.record({
+    await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
       action: 'task.created',
       entityType: 'task',
@@ -405,18 +488,24 @@ export class TaskFacade {
 
   async updateTask(id: string, input: Partial<Task>, auditMeta: AuditMetadata) {
     const previous = await this.taskReadPort.findById(id)
+    const targetCompanyId = input.companyId ?? previous?.companyId
+    if (targetCompanyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, targetCompanyId)
+    } else {
+      assertSelfScoped(auditMeta.actor, 'assigneeId', input.assigneeId ?? previous?.assigneeId)
+    }
     const task = await this.taskReadPort.update(id, input)
 
     if (!task) return null
 
-    await this.audit.record({
+    await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
       action: 'task.updated',
       entityType: 'task',
       entityId: task.id,
       requestId: auditMeta.requestId,
       result: 'SUCCESS',
-      previousState: previous as unknown as Record<string, unknown>,
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
       newState: task as unknown as Record<string, unknown>,
     })
     return task
@@ -424,10 +513,15 @@ export class TaskFacade {
 
   async deleteTask(id: string, auditMeta: AuditMetadata) {
     const previous = await this.taskReadPort.findById(id)
+    if (previous?.companyId) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, previous.companyId)
+    } else if (previous) {
+      assertSelfScoped(auditMeta.actor, 'assigneeId', previous.assigneeId)
+    }
     const deleted = await this.taskReadPort.delete(id)
 
     if (deleted && previous) {
-      await this.audit.record({
+      await auditSafely(this.audit, {
         actorId: auditMeta.actorId,
         action: 'task.deleted',
         entityType: 'task',
@@ -460,12 +554,7 @@ export class AuditFacade {
     requestId?: string
     limit: number
     offset: number
-  }) {
+  }): Promise<{ events: AuditEvent[]; total: number }> {
     return this.auditReadPort.list(params)
   }
-}
-
-interface AuditMetadata {
-  actorId?: string
-  requestId?: string
 }

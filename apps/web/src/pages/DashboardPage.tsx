@@ -1,5 +1,4 @@
 import React from 'react'
-import { api } from '../api'
 import { PageHeader, ErrorState, LoadingState } from '../components/ui'
 import { useFetch } from '../useFetch'
 

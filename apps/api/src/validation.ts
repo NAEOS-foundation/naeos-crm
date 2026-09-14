@@ -5,6 +5,15 @@ export const paginationSchema = z.object({
   limit: z.coerce.number().int().positive().max(100).default(20),
 })
 
+const nonNullDate = z.coerce
+  .date()
+  .default(() => new Date())
+  .refine((value) => value.getTime() > 0, {
+    message: 'must be a valid date (null is not accepted)',
+  })
+
+const nullableDate = z.coerce.date().nullable().optional()
+
 export const idParamSchema = z.object({
   id: z.string().min(1),
 })
@@ -54,7 +63,7 @@ export const createActivitySchema = z.object({
   type: z.enum(['EMAIL', 'CALL', 'MEETING', 'TASK']),
   channel: z.string().optional(),
   summary: z.string().min(1),
-  occurredAt: z.coerce.date().default(() => new Date()),
+  occurredAt: nonNullDate,
   ownerId: z.string().optional(),
 })
 
@@ -64,7 +73,7 @@ export const createTaskSchema = z.object({
   companyId: z.string().optional(),
   assigneeId: z.string().optional(),
   subject: z.string().min(1),
-  dueAt: z.coerce.date().optional(),
+  dueAt: nullableDate,
   status: z.enum(['OPEN', 'IN_PROGRESS', 'DONE']).default('OPEN'),
 })
 

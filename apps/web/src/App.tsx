@@ -1,6 +1,7 @@
 import React from 'react'
-import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth'
+import { can } from './permissions'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { CompaniesPage } from './pages/CompaniesPage'
@@ -11,20 +12,43 @@ import { TasksPage } from './pages/TasksPage'
 import { UsersPage } from './pages/UsersPage'
 import { AuditPage } from './pages/AuditPage'
 
-const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/companies', label: 'Companies' },
-  { to: '/contacts', label: 'Contacts' },
-  { to: '/leads', label: 'Leads' },
-  { to: '/activities', label: 'Activities' },
-  { to: '/tasks', label: 'Tasks' },
-  { to: '/users', label: 'Users' },
-  { to: '/audit', label: 'Audit' },
+interface NavItem {
+  to: string
+  label: string
+  end?: boolean
+  resource: string
+  action: string
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { to: '/', label: 'Dashboard', end: true, resource: 'dashboard', action: 'read' },
+  { to: '/companies', label: 'Companies', resource: 'company', action: 'read' },
+  { to: '/contacts', label: 'Contacts', resource: 'contact', action: 'read' },
+  { to: '/leads', label: 'Leads', resource: 'lead', action: 'read' },
+  { to: '/activities', label: 'Activities', resource: 'activity', action: 'read' },
+  { to: '/tasks', label: 'Tasks', resource: 'task', action: 'read' },
+  { to: '/users', label: 'Users', resource: 'user', action: 'read' },
+  { to: '/audit', label: 'Audit', resource: 'audit', action: 'read' },
 ]
+
+function RequirePermission({
+  resource,
+  action,
+  children,
+}: {
+  resource: string
+  action: string
+  children: React.ReactNode
+}) {
+  const { actor } = useAuth()
+  if (!can(actor, resource, action) && resource !== 'dashboard') {
+    return <Navigate to="/" replace />
+  }
+  return <>{children}</>
+}
 
 export function App() {
   const { actor, logout, isAuthenticated } = useAuth()
-  const location = useLocation()
 
   if (!isAuthenticated) {
     return (
@@ -42,7 +66,7 @@ export function App() {
           <strong>NAEOS CRM</strong>
         </div>
         <nav>
-          {NAV_ITEMS.map((item) => (
+          {NAV_ITEMS.filter((item) => can(actor, item.resource, item.action)).map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -64,7 +88,7 @@ export function App() {
         </div>
       </aside>
       <main className="content">
-        <Routes key={location.pathname}>
+        <Routes>
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="/" element={<DashboardPage />} />
           <Route path="/companies" element={<CompaniesPage />} />
@@ -72,8 +96,22 @@ export function App() {
           <Route path="/leads" element={<LeadsPage />} />
           <Route path="/activities" element={<ActivitiesPage />} />
           <Route path="/tasks" element={<TasksPage />} />
-          <Route path="/users" element={<UsersPage />} />
-          <Route path="/audit" element={<AuditPage />} />
+          <Route
+            path="/users"
+            element={
+              <RequirePermission resource="user" action="read">
+                <UsersPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/audit"
+            element={
+              <RequirePermission resource="audit" action="read">
+                <AuditPage />
+              </RequirePermission>
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

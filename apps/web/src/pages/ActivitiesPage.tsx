@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { api } from '../api'
 import { ErrorState, LoadingState, Modal, PageHeader, StatusBadge, Table } from '../components/ui'
 import { useFetch } from '../useFetch'
+import { useAuth } from '../auth'
+import { can, isMemberOnly } from '../permissions'
 
 interface Activity {
   id: string
@@ -24,7 +26,8 @@ const EMPTY_FORM: ActivityForm = { type: 'EMAIL', channel: '', summary: '' }
 
 export function ActivitiesPage() {
   const { data, loading, error, reload } = useFetch<{ data: Activity[] }>('/api/v1/activities')
-  const companies = useFetch<{ data: { id: string; name: string }[] }>('/api/v1/companies')
+  const companies = useFetch<{ data: { id: string; name: string; ownerId?: string }[] }>('/api/v1/companies')
+  const { actor } = useAuth()
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<ActivityForm>(EMPTY_FORM)
   const [companyId, setCompanyId] = useState('')
@@ -33,7 +36,11 @@ export function ActivitiesPage() {
   if (loading || companies.loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
 
+  const canWrite = can(actor, 'activity', 'write')
   const companyNames = new Map((companies.data?.data ?? []).map((company) => [company.id, company.name]))
+  const availableCompanies = isMemberOnly(actor)
+    ? (companies.data?.data ?? []).filter((company) => company.ownerId === actor?.id)
+    : (companies.data?.data ?? [])
 
   async function submit() {
     setFormError(null)
@@ -60,15 +67,17 @@ export function ActivitiesPage() {
       <PageHeader
         title="Activities"
         action={
-          <button
-            className="btn btn-primary"
-            onClick={() => {
-              setCompanyId(companies.data?.data[0]?.id ?? '')
-              setShowCreate(true)
-            }}
-          >
-            New activity
-          </button>
+          canWrite ? (
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                setCompanyId(availableCompanies[0]?.id ?? '')
+                setShowCreate(true)
+              }}
+            >
+              New activity
+            </button>
+          ) : null
         }
       />
       <Table columns={['Date', 'Type', 'Company', 'Channel', 'Summary']}>
@@ -104,7 +113,7 @@ export function ActivitiesPage() {
             <label htmlFor="activity-company">Company</label>
             <select id="activity-company" value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
               <option value="">None</option>
-              {(companies.data?.data ?? []).map((company) => (
+              {(availableCompanies.length > 0 ? availableCompanies : companies.data?.data ?? []).map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
                 </option>

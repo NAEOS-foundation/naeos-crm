@@ -13,6 +13,7 @@ The Express REST API implements the Phase 1 foundation.
 - `service-layer.ts`: application facades that orchestrate writes and emit audit events
 - `prisma-ports.ts`: Prisma-backed implementations of the domain read/write ports
 - `domain-interfaces.ts`: ports consumed by the service layer
+- `errors.ts`: structured HTTP error contract (status, code, message)
 - `gate.ts`: GO-Gate orchestration placeholder (Phase 4 boundary)
 - `policy-adapter.ts`: policy integration adapter placeholder (Phase 4)
 - `integration-adapters.ts`: provider adapter placeholders (Phase 6)

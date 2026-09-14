@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { api } from '../api'
 import { ErrorState, LoadingState, Modal, PageHeader, StatusBadge, Table } from '../components/ui'
 import { useFetch } from '../useFetch'
+import { useAuth } from '../auth'
+import { can } from '../permissions'
 
 interface User {
   id: string
@@ -20,6 +22,7 @@ const EMPTY_FORM: UserForm = { name: '', status: 'ACTIVE' }
 
 export function UsersPage() {
   const { data, loading, error, reload } = useFetch<{ data: User[] }>('/api/v1/users')
+  const { actor } = useAuth()
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<UserForm>(EMPTY_FORM)
   const [email, setEmail] = useState('')
@@ -49,9 +52,11 @@ export function UsersPage() {
       <PageHeader
         title="Users"
         action={
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-            New user
-          </button>
+          can(actor, 'user', 'write') ? (
+            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+              New user
+            </button>
+          ) : null
         }
       />
       <Table columns={['Name', 'Email', 'Roles', 'Status']}>

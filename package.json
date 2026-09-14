@@ -3,8 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "dev:web": "npm --workspace apps/web run dev",
@@ -17,5 +17,10 @@
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
+  },
+  "devDependencies": {
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "ts-node": "^10.9.2",
+    "typescript-eslint": "^8.70.0"
   }
 }

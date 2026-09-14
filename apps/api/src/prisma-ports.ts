@@ -20,8 +20,29 @@ import type {
   TaskReadPort,
   UserReadPort,
 } from './domain-interfaces'
+import { conflict, HttpError, invalidReference } from './errors'
 
 export const prisma = new PrismaClient()
+
+export interface PageQuery {
+  limit?: number
+  offset?: number
+}
+
+const isPrismaNotFound = (err: unknown): boolean =>
+  err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025'
+
+function translatePrismaError(err: unknown): never {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === 'P2002') {
+      throw conflict('A record with the same unique value already exists')
+    }
+    if (err.code === 'P2003') {
+      throw invalidReference('The referenced record does not exist')
+    }
+  }
+  throw err
+}
 
 const normalizeUser = (user: any): User => ({
   id: user.id,
@@ -106,8 +127,12 @@ export class PrismaUserReadPort implements UserReadPort {
   }
 
   async create(input: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
-    const user = await prisma.user.create({ data: input })
-    return normalizeUser(user)
+    try {
+      const user = await prisma.user.create({ data: input })
+      return normalizeUser(user)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
   }
 
   async update(id: string, input: Partial<User>): Promise<User | null> {
@@ -117,8 +142,9 @@ export class PrismaUserReadPort implements UserReadPort {
         data: { ...input, updatedAt: new Date() },
       })
       return normalizeUser(user)
-    } catch {
-      return null
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
     }
   }
 
@@ -126,8 +152,9 @@ export class PrismaUserReadPort implements UserReadPort {
     try {
       await prisma.user.delete({ where: { id } })
       return true
-    } catch {
-      return false
+    } catch (err) {
+      if (isPrismaNotFound(err)) return false
+      throw translatePrismaError(err)
     }
   }
 }
@@ -138,17 +165,31 @@ export class PrismaCompanyReadPort implements CompanyReadPort {
     return company ? normalizeCompany(company) : null
   }
 
-  async list(params?: { status?: Company['status'] }): Promise<Company[]> {
-    const companies = await prisma.company.findMany({
-      where: params?.status ? { status: params.status } : undefined,
-      orderBy: { createdAt: 'desc' },
-    })
-    return companies.map(normalizeCompany)
+  async list(params?: {
+    status?: Company['status']
+    limit?: number
+    offset?: number
+  }): Promise<{ data: Company[]; total: number }> {
+    const where = params?.status ? { status: params.status } : {}
+    const [companies, total] = await Promise.all([
+      prisma.company.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.company.count({ where }),
+    ])
+    return { data: companies.map(normalizeCompany), total }
   }
 
   async create(input: Omit<Company, 'id' | 'createdAt' | 'updatedAt'>): Promise<Company> {
-    const company = await prisma.company.create({ data: input })
-    return normalizeCompany(company)
+    try {
+      const company = await prisma.company.create({ data: input })
+      return normalizeCompany(company)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
   }
 
   async update(id: string, input: Partial<Company>): Promise<Company | null> {
@@ -158,17 +199,33 @@ export class PrismaCompanyReadPort implements CompanyReadPort {
         data: { ...input, updatedAt: new Date() },
       })
       return normalizeCompany(company)
-    } catch {
-      return null
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
     }
   }
 
   async delete(id: string): Promise<boolean> {
     try {
+      const [contacts, leads, activities, tasks] = await Promise.all([
+        prisma.contact.count({ where: { companyId: id } }),
+        prisma.lead.count({ where: { companyId: id } }),
+        prisma.activity.count({ where: { companyId: id } }),
+        prisma.task.count({ where: { companyId: id } }),
+      ])
+      const related = contacts + leads + activities + tasks
+      if (related > 0) {
+        throw new HttpError(
+          409,
+          'COMPANY_HAS_RELATIONS',
+          `Cannot delete: company has ${related} related contact, lead, activity, or task record(s). Move or delete them first.`,
+        )
+      }
       await prisma.company.delete({ where: { id } })
       return true
-    } catch {
-      return false
+    } catch (err) {
+      if (isPrismaNotFound(err)) return false
+      throw translatePrismaError(err)
     }
   }
 }
@@ -179,23 +236,42 @@ export class PrismaContactReadPort implements ContactReadPort {
     return contact ? normalizeContact(contact) : null
   }
 
-  async list(): Promise<Contact[]> {
-    const contacts = await prisma.contact.findMany({ orderBy: { createdAt: 'desc' } })
-    return contacts.map(normalizeContact)
+  async list(params?: PageQuery): Promise<{ data: Contact[]; total: number }> {
+    const [contacts, total] = await Promise.all([
+      prisma.contact.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.contact.count(),
+    ])
+    return { data: contacts.map(normalizeContact), total }
   }
 
-  async listByCompany(companyId: string): Promise<Contact[]> {
-    const contacts = await prisma.contact.findMany({
-      where: { companyId },
-      orderBy: { createdAt: 'desc' },
-    })
-
-    return contacts.map(normalizeContact)
+  async listByCompany(
+    companyId: string,
+    params?: PageQuery,
+  ): Promise<{ data: Contact[]; total: number }> {
+    const where = { companyId }
+    const [contacts, total] = await Promise.all([
+      prisma.contact.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.contact.count({ where }),
+    ])
+    return { data: contacts.map(normalizeContact), total }
   }
 
   async create(input: Omit<Contact, 'id' | 'createdAt' | 'updatedAt'>): Promise<Contact> {
-    const contact = await prisma.contact.create({ data: input })
-    return normalizeContact(contact)
+    try {
+      const contact = await prisma.contact.create({ data: input })
+      return normalizeContact(contact)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
   }
 
   async update(id: string, input: Partial<Contact>): Promise<Contact | null> {
@@ -205,8 +281,9 @@ export class PrismaContactReadPort implements ContactReadPort {
         data: { ...input, updatedAt: new Date() },
       })
       return normalizeContact(contact)
-    } catch {
-      return null
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
     }
   }
 
@@ -214,8 +291,9 @@ export class PrismaContactReadPort implements ContactReadPort {
     try {
       await prisma.contact.delete({ where: { id } })
       return true
-    } catch {
-      return false
+    } catch (err) {
+      if (isPrismaNotFound(err)) return false
+      throw translatePrismaError(err)
     }
   }
 }
@@ -226,23 +304,42 @@ export class PrismaLeadReadPort implements LeadReadPort {
     return lead ? normalizeLead(lead) : null
   }
 
-  async list(): Promise<Lead[]> {
-    const leads = await prisma.lead.findMany({ orderBy: { createdAt: 'desc' } })
-    return leads.map(normalizeLead)
+  async list(params?: PageQuery): Promise<{ data: Lead[]; total: number }> {
+    const [leads, total] = await Promise.all([
+      prisma.lead.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.lead.count(),
+    ])
+    return { data: leads.map(normalizeLead), total }
   }
 
-  async listByCompany(companyId: string): Promise<Lead[]> {
-    const leads = await prisma.lead.findMany({
-      where: { companyId },
-      orderBy: { createdAt: 'desc' },
-    })
-
-    return leads.map(normalizeLead)
+  async listByCompany(
+    companyId: string,
+    params?: PageQuery,
+  ): Promise<{ data: Lead[]; total: number }> {
+    const where = { companyId }
+    const [leads, total] = await Promise.all([
+      prisma.lead.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.lead.count({ where }),
+    ])
+    return { data: leads.map(normalizeLead), total }
   }
 
   async create(input: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>): Promise<Lead> {
-    const lead = await prisma.lead.create({ data: input })
-    return normalizeLead(lead)
+    try {
+      const lead = await prisma.lead.create({ data: input })
+      return normalizeLead(lead)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
   }
 
   async update(id: string, input: Partial<Lead>): Promise<Lead | null> {
@@ -252,8 +349,9 @@ export class PrismaLeadReadPort implements LeadReadPort {
         data: { ...input, updatedAt: new Date() },
       })
       return normalizeLead(lead)
-    } catch {
-      return null
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
     }
   }
 
@@ -261,8 +359,9 @@ export class PrismaLeadReadPort implements LeadReadPort {
     try {
       await prisma.lead.delete({ where: { id } })
       return true
-    } catch {
-      return false
+    } catch (err) {
+      if (isPrismaNotFound(err)) return false
+      throw translatePrismaError(err)
     }
   }
 }
@@ -273,23 +372,42 @@ export class PrismaActivityReadPort implements ActivityReadPort {
     return activity ? normalizeActivity(activity) : null
   }
 
-  async list(): Promise<Activity[]> {
-    const activities = await prisma.activity.findMany({ orderBy: { occurredAt: 'desc' } })
-    return activities.map(normalizeActivity)
+  async list(params?: PageQuery): Promise<{ data: Activity[]; total: number }> {
+    const [activities, total] = await Promise.all([
+      prisma.activity.findMany({
+        orderBy: { occurredAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.activity.count(),
+    ])
+    return { data: activities.map(normalizeActivity), total }
   }
 
-  async listByCompany(companyId: string): Promise<Activity[]> {
-    const activities = await prisma.activity.findMany({
-      where: { companyId },
-      orderBy: { occurredAt: 'desc' },
-    })
-
-    return activities.map(normalizeActivity)
+  async listByCompany(
+    companyId: string,
+    params?: PageQuery,
+  ): Promise<{ data: Activity[]; total: number }> {
+    const where = { companyId }
+    const [activities, total] = await Promise.all([
+      prisma.activity.findMany({
+        where,
+        orderBy: { occurredAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.activity.count({ where }),
+    ])
+    return { data: activities.map(normalizeActivity), total }
   }
 
   async create(input: Omit<Activity, 'id' | 'createdAt'>): Promise<Activity> {
-    const activity = await prisma.activity.create({ data: input })
-    return normalizeActivity(activity)
+    try {
+      const activity = await prisma.activity.create({ data: input })
+      return normalizeActivity(activity)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
   }
 
   async update(id: string, input: Partial<Activity>): Promise<Activity | null> {
@@ -299,8 +417,9 @@ export class PrismaActivityReadPort implements ActivityReadPort {
         data: input,
       })
       return normalizeActivity(activity)
-    } catch {
-      return null
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
     }
   }
 
@@ -308,8 +427,9 @@ export class PrismaActivityReadPort implements ActivityReadPort {
     try {
       await prisma.activity.delete({ where: { id } })
       return true
-    } catch {
-      return false
+    } catch (err) {
+      if (isPrismaNotFound(err)) return false
+      throw translatePrismaError(err)
     }
   }
 }
@@ -320,23 +440,42 @@ export class PrismaTaskReadPort implements TaskReadPort {
     return task ? normalizeTask(task) : null
   }
 
-  async list(): Promise<Task[]> {
-    const tasks = await prisma.task.findMany({ orderBy: { createdAt: 'desc' } })
-    return tasks.map(normalizeTask)
+  async list(params?: PageQuery): Promise<{ data: Task[]; total: number }> {
+    const [tasks, total] = await Promise.all([
+      prisma.task.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.task.count(),
+    ])
+    return { data: tasks.map(normalizeTask), total }
   }
 
-  async listByCompany(companyId: string): Promise<Task[]> {
-    const tasks = await prisma.task.findMany({
-      where: { companyId },
-      orderBy: { createdAt: 'desc' },
-    })
-
-    return tasks.map(normalizeTask)
+  async listByCompany(
+    companyId: string,
+    params?: PageQuery,
+  ): Promise<{ data: Task[]; total: number }> {
+    const where = { companyId }
+    const [tasks, total] = await Promise.all([
+      prisma.task.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.task.count({ where }),
+    ])
+    return { data: tasks.map(normalizeTask), total }
   }
 
   async create(input: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> {
-    const task = await prisma.task.create({ data: input })
-    return normalizeTask(task)
+    try {
+      const task = await prisma.task.create({ data: input })
+      return normalizeTask(task)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
   }
 
   async update(id: string, input: Partial<Task>): Promise<Task | null> {
@@ -346,8 +485,9 @@ export class PrismaTaskReadPort implements TaskReadPort {
         data: { ...input, updatedAt: new Date() },
       })
       return normalizeTask(task)
-    } catch {
-      return null
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
     }
   }
 
@@ -355,8 +495,9 @@ export class PrismaTaskReadPort implements TaskReadPort {
     try {
       await prisma.task.delete({ where: { id } })
       return true
-    } catch {
-      return false
+    } catch (err) {
+      if (isPrismaNotFound(err)) return false
+      throw translatePrismaError(err)
     }
   }
 }
@@ -414,6 +555,7 @@ export class PrismaAuditSink {
   async append(event: AuditEvent): Promise<void> {
     await prisma.auditEvent.create({
       data: {
+        id: event.id,
         actorId: event.actorId,
         actorType: event.actorType,
         action: event.action,

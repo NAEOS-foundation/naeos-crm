@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { api } from '../api'
 import { ErrorState, LoadingState, Modal, PageHeader, StatusBadge, Table } from '../components/ui'
 import { useFetch } from '../useFetch'
+import { useAuth } from '../auth'
+import { can } from '../permissions'
 
 interface Task {
   id: string
@@ -22,6 +24,7 @@ const EMPTY_FORM: TaskForm = { subject: '', status: 'OPEN', dueAt: '' }
 
 export function TasksPage() {
   const { data, loading, error, reload } = useFetch<{ data: Task[] }>('/api/v1/tasks')
+  const { actor } = useAuth()
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<TaskForm>(EMPTY_FORM)
   const [formError, setFormError] = useState<string | null>(null)
@@ -53,9 +56,11 @@ export function TasksPage() {
       <PageHeader
         title="Tasks"
         action={
-          <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
-            New task
-          </button>
+          can(actor, 'task', 'write') ? (
+            <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+              New task
+            </button>
+          ) : null
         }
       />
       <Table columns={['Subject', 'Status', 'Due', 'Assignee']}>

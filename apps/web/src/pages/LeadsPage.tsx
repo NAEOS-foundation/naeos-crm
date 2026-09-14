@@ -3,6 +3,7 @@ import { api } from '../api'
 import { ErrorState, LoadingState, Modal, PageHeader, StatusBadge, Table } from '../components/ui'
 import { useFetch } from '../useFetch'
 import { useAuth } from '../auth'
+import { can } from '../permissions'
 
 interface Lead {
   id: string
@@ -33,7 +34,7 @@ export function LeadsPage() {
   if (loading || companies.loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
 
-  const canWrite = actor != null
+  const canWrite = can(actor, 'lead', 'write')
   const companyNames = new Map((companies.data?.data ?? []).map((company) => [company.id, company.name]))
 
   async function submit() {

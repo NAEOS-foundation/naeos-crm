@@ -2,11 +2,13 @@
 
 ## Status
 
-This roadmap defines the intended implementation progression for NAEOS CRM and intentionally avoids implementation of Phase 1 features at this stage.
+- Phase 0 (architecture foundation) is delivered via `docs/` (architecture, domain model, security model, audit model, API surface, ADRs).
+- Phase 1 (foundation) is delivered and open as PR #1: full-stack monorepo with auth, RBAC, CRUD + audit, dashboard, and a React web app.
+- Phases 2–6 remain future work per the ordering below.
 
 ## Phase 0 — Architecture foundation
 
-This phase is currently in progress and is focused on establishing the architecture, domain model, security model, audit model, API contract, and ADRs.
+This phase is complete. It established the architecture, domain model, security model, audit model, API contract, and ADRs.
 
 ### Deliverables
 
@@ -18,6 +20,10 @@ This phase is currently in progress and is focused on establishing the architect
 - ADRs for core decisions
 
 ## Phase 1 — Foundation
+
+### Status
+
+Complete and open as PR #1. The implementation includes the API (`@naeos-crm/api`), React web app (`@naeos-crm/web`), shared domain/security/audit packages, Prisma schema + migrations + seed, and CI with build, lint, and test gates.
 
 ### Scope
 
