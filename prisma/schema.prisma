@@ -97,6 +97,36 @@ enum FollowUpStatus {
   CANCELLED
 }
 
+enum EcosystemStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ContributorRole {
+  DEVELOPER
+  DESIGNER
+  REVIEWER
+  MAINTAINER
+  ADVISOR
+}
+
+enum PartnerType {
+  TECHNOLOGY
+  INTEGRATION
+  STRATEGIC
+  CHANNEL
+  RESELLER
+}
+
+enum InvestorType {
+  ANGEL
+  SEED
+  VENTURE
+  STRATEGIC
+  OTHER
+}
+
 enum AuditResult {
   SUCCESS
   FAILURE
@@ -118,6 +148,11 @@ model User {
   ownedOpportunities Opportunity[] @relation("OpportunityOwner")
   ownedCampaigns   Campaign[]  @relation("CampaignOwner")
   ownedFollowUps   FollowUp[]  @relation("FollowUpOwner")
+  ownedContributors Contributor[] @relation("ContributorOwner")
+  ownedPartners     Partner[]     @relation("PartnerOwner")
+  ownedCommunities  Community[]   @relation("CommunityOwner")
+  ownedInvestors    Investor[]    @relation("InvestorOwner")
+  ownedUseCases     UseCase[]     @relation("UseCaseOwner")
 }
 
 model Company {
@@ -266,6 +301,7 @@ model Opportunity {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   owner   User?   @relation("OpportunityOwner", fields: [ownerId], references: [id])
+  useCases UseCase[]
 
   @@index([companyId])
   @@index([ownerId])
@@ -324,4 +360,87 @@ model FollowUp {
   @@index([ownerId])
   @@index([status])
   @@index([dueAt])
+}
+
+model Contributor {
+  id          String           @id @default(cuid())
+  name        String
+  role        ContributorRole
+  status      EcosystemStatus  @default(ACTIVE)
+  communityId String?
+  ownerId     String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  community Community? @relation(fields: [communityId], references: [id], onDelete: SetNull)
+  owner     User?      @relation("ContributorOwner", fields: [ownerId], references: [id])
+
+  @@index([communityId])
+  @@index([ownerId])
+  @@index([status])
+}
+
+model Partner {
+  id          String          @id @default(cuid())
+  name        String
+  partnerType PartnerType
+  status      EcosystemStatus @default(ACTIVE)
+  ownerId     String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  owner User? @relation("PartnerOwner", fields: [ownerId], references: [id])
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([partnerType])
+}
+
+model Community {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  purpose   String?
+  status    EcosystemStatus @default(ACTIVE)
+  ownerId   String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  owner        User?          @relation("CommunityOwner", fields: [ownerId], references: [id])
+  contributors Contributor[]
+
+  @@index([ownerId])
+  @@index([status])
+}
+
+model Investor {
+  id           String          @id @default(cuid())
+  name         String
+  investorType InvestorType
+  status       EcosystemStatus @default(ACTIVE)
+  ownerId      String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  owner User? @relation("InvestorOwner", fields: [ownerId], references: [id])
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([investorType])
+}
+
+model UseCase {
+  id            String     @id @default(cuid())
+  opportunityId String
+  title         String
+  summary       String?
+  value         Decimal?   @db.Decimal(14, 2)
+  ownerId       String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  owner       User?       @relation("UseCaseOwner", fields: [ownerId], references: [id])
+
+  @@index([opportunityId])
+  @@index([ownerId])
 }

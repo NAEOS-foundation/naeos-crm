@@ -7,16 +7,21 @@ import type {
   CampaignStatus,
   CampaignStep,
   Company,
+  Community,
   Contact,
+  Contributor,
   DashboardSummary,
   FollowUp,
   FollowUpAnalyticsSummary,
+  Investor,
   Lead,
   Opportunity,
   OpportunityStage,
+  Partner,
   PipelineAnalyticsSummary,
   PipelineStage,
   Task,
+  UseCase,
   User,
 } from '@naeos-crm/domain'
 
@@ -25,15 +30,20 @@ import type {
   AuditReadPort,
   CampaignReadPort,
   CampaignStepReadPort,
+  CommunityReadPort,
   CompanyReadPort,
   ContactReadPort,
+  ContributorReadPort,
   DashboardReadPort,
   FollowUpReadPort,
+  InvestorReadPort,
   LeadReadPort,
   OpportunityReadPort,
+  PartnerReadPort,
   PipelineAnalyticsReadPort,
   PipelineStageReadPort,
   TaskReadPort,
+  UseCaseReadPort,
   UserReadPort,
 } from './domain-interfaces'
 import { conflict, HttpError, invalidReference } from './errors'
@@ -1110,6 +1120,58 @@ export class PrismaAuditSink {
   }
 }
 
+const normalizeContributor = (contributor: any): Contributor => ({
+  id: contributor.id,
+  name: contributor.name,
+  role: contributor.role,
+  status: contributor.status,
+  communityId: contributor.communityId ?? undefined,
+  ownerId: contributor.ownerId ?? undefined,
+  createdAt: contributor.createdAt,
+  updatedAt: contributor.updatedAt,
+})
+
+const normalizePartner = (partner: any): Partner => ({
+  id: partner.id,
+  name: partner.name,
+  partnerType: partner.partnerType,
+  status: partner.status,
+  ownerId: partner.ownerId ?? undefined,
+  createdAt: partner.createdAt,
+  updatedAt: partner.updatedAt,
+})
+
+const normalizeCommunity = (community: any): Community => ({
+  id: community.id,
+  name: community.name,
+  purpose: community.purpose ?? undefined,
+  status: community.status,
+  ownerId: community.ownerId ?? undefined,
+  createdAt: community.createdAt,
+  updatedAt: community.updatedAt,
+})
+
+const normalizeInvestor = (investor: any): Investor => ({
+  id: investor.id,
+  name: investor.name,
+  investorType: investor.investorType,
+  status: investor.status,
+  ownerId: investor.ownerId ?? undefined,
+  createdAt: investor.createdAt,
+  updatedAt: investor.updatedAt,
+})
+
+const normalizeUseCase = (useCase: any): UseCase => ({
+  id: useCase.id,
+  opportunityId: useCase.opportunityId,
+  title: useCase.title,
+  summary: useCase.summary ?? undefined,
+  value: useCase.value !== null ? Number(useCase.value) : undefined,
+  ownerId: useCase.ownerId ?? undefined,
+  createdAt: useCase.createdAt,
+  updatedAt: useCase.updatedAt,
+})
+
 const normalizeAuditEvent = (event: any): AuditEvent => ({
   id: event.id,
   actorId: event.actorId ?? undefined,
@@ -1155,5 +1217,312 @@ export class PrismaAuditReadPort implements AuditReadPort {
     ])
 
     return { events: events.map(normalizeAuditEvent), total }
+  }
+}
+
+export class PrismaContributorReadPort implements ContributorReadPort {
+  async findById(id: string): Promise<Contributor | null> {
+    const contributor = await prisma.contributor.findUnique({ where: { id } })
+    return contributor ? normalizeContributor(contributor) : null
+  }
+
+  async list(
+    params?: { status?: Contributor['status']; role?: Contributor['role']; communityId?: string } & PageQuery,
+  ): Promise<{ data: Contributor[]; total: number }> {
+    const where: any = {}
+    if (params?.status) where.status = params.status
+    if (params?.role) where.role = params.role
+    if (params?.communityId) where.communityId = params.communityId
+
+    const [contributors, total] = await Promise.all([
+      prisma.contributor.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.contributor.count({ where }),
+    ])
+    return { data: contributors.map(normalizeContributor), total }
+  }
+
+  async create(input: Omit<Contributor, 'id' | 'createdAt' | 'updatedAt'>): Promise<Contributor> {
+    try {
+      const contributor = await prisma.contributor.create({ data: input })
+      return normalizeContributor(contributor)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
+  }
+
+  async update(id: string, input: Partial<Contributor>): Promise<Contributor | null> {
+    try {
+      const contributor = await prisma.contributor.update({
+        where: { id },
+        data: { ...input, updatedAt: new Date() },
+      })
+      return normalizeContributor(contributor)
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
+    }
+  }
+
+  async delete(id: string): Promise<boolean> {
+    try {
+      await prisma.contributor.delete({ where: { id } })
+      return true
+    } catch (err) {
+      if (isPrismaNotFound(err)) return false
+      throw translatePrismaError(err)
+    }
+  }
+}
+
+export class PrismaPartnerReadPort implements PartnerReadPort {
+  async findById(id: string): Promise<Partner | null> {
+    const partner = await prisma.partner.findUnique({ where: { id } })
+    return partner ? normalizePartner(partner) : null
+  }
+
+  async list(
+    params?: { status?: Partner['status']; partnerType?: Partner['partnerType'] } & PageQuery,
+  ): Promise<{ data: Partner[]; total: number }> {
+    const where: any = {}
+    if (params?.status) where.status = params.status
+    if (params?.partnerType) where.partnerType = params.partnerType
+
+    const [partners, total] = await Promise.all([
+      prisma.partner.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.partner.count({ where }),
+    ])
+    return { data: partners.map(normalizePartner), total }
+  }
+
+  async create(input: Omit<Partner, 'id' | 'createdAt' | 'updatedAt'>): Promise<Partner> {
+    try {
+      const partner = await prisma.partner.create({ data: input })
+      return normalizePartner(partner)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
+  }
+
+  async update(id: string, input: Partial<Partner>): Promise<Partner | null> {
+    try {
+      const partner = await prisma.partner.update({
+        where: { id },
+        data: { ...input, updatedAt: new Date() },
+      })
+      return normalizePartner(partner)
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
+    }
+  }
+
+  async delete(id: string): Promise<boolean> {
+    try {
+      await prisma.partner.delete({ where: { id } })
+      return true
+    } catch (err) {
+      if (isPrismaNotFound(err)) return false
+      throw translatePrismaError(err)
+    }
+  }
+}
+
+export class PrismaCommunityReadPort implements CommunityReadPort {
+  async findById(id: string): Promise<Community | null> {
+    const community = await prisma.community.findUnique({ where: { id } })
+    return community ? normalizeCommunity(community) : null
+  }
+
+  async list(
+    params?: { status?: Community['status'] } & PageQuery,
+  ): Promise<{ data: Community[]; total: number }> {
+    const where: any = {}
+    if (params?.status) where.status = params.status
+
+    const [communities, total] = await Promise.all([
+      prisma.community.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.community.count({ where }),
+    ])
+    return { data: communities.map(normalizeCommunity), total }
+  }
+
+  async create(input: Omit<Community, 'id' | 'createdAt' | 'updatedAt'>): Promise<Community> {
+    try {
+      const community = await prisma.community.create({ data: input })
+      return normalizeCommunity(community)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
+  }
+
+  async update(id: string, input: Partial<Community>): Promise<Community | null> {
+    try {
+      const community = await prisma.community.update({
+        where: { id },
+        data: { ...input, updatedAt: new Date() },
+      })
+      return normalizeCommunity(community)
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
+    }
+  }
+
+  async delete(id: string): Promise<boolean> {
+    try {
+      await prisma.community.delete({ where: { id } })
+      return true
+    } catch (err) {
+      if (isPrismaNotFound(err)) return false
+      throw translatePrismaError(err)
+    }
+  }
+}
+
+export class PrismaInvestorReadPort implements InvestorReadPort {
+  async findById(id: string): Promise<Investor | null> {
+    const investor = await prisma.investor.findUnique({ where: { id } })
+    return investor ? normalizeInvestor(investor) : null
+  }
+
+  async list(
+    params?: { status?: Investor['status']; investorType?: Investor['investorType'] } & PageQuery,
+  ): Promise<{ data: Investor[]; total: number }> {
+    const where: any = {}
+    if (params?.status) where.status = params.status
+    if (params?.investorType) where.investorType = params.investorType
+
+    const [investors, total] = await Promise.all([
+      prisma.investor.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.investor.count({ where }),
+    ])
+    return { data: investors.map(normalizeInvestor), total }
+  }
+
+  async create(input: Omit<Investor, 'id' | 'createdAt' | 'updatedAt'>): Promise<Investor> {
+    try {
+      const investor = await prisma.investor.create({ data: input })
+      return normalizeInvestor(investor)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
+  }
+
+  async update(id: string, input: Partial<Investor>): Promise<Investor | null> {
+    try {
+      const investor = await prisma.investor.update({
+        where: { id },
+        data: { ...input, updatedAt: new Date() },
+      })
+      return normalizeInvestor(investor)
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
+    }
+  }
+
+  async delete(id: string): Promise<boolean> {
+    try {
+      await prisma.investor.delete({ where: { id } })
+      return true
+    } catch (err) {
+      if (isPrismaNotFound(err)) return false
+      throw translatePrismaError(err)
+    }
+  }
+}
+
+export class PrismaUseCaseReadPort implements UseCaseReadPort {
+  async findById(id: string): Promise<UseCase | null> {
+    const useCase = await prisma.useCase.findUnique({ where: { id } })
+    return useCase ? normalizeUseCase(useCase) : null
+  }
+
+  async list(
+    params?: { opportunityId?: string; ownerId?: string } & PageQuery,
+  ): Promise<{ data: UseCase[]; total: number }> {
+    const where: any = {}
+    if (params?.opportunityId) where.opportunityId = params.opportunityId
+    if (params?.ownerId) where.ownerId = params.ownerId
+
+    const [useCases, total] = await Promise.all([
+      prisma.useCase.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.useCase.count({ where }),
+    ])
+    return { data: useCases.map(normalizeUseCase), total }
+  }
+
+  async listByOpportunity(
+    opportunityId: string,
+    params?: PageQuery,
+  ): Promise<{ data: UseCase[]; total: number }> {
+    const where = { opportunityId }
+    const [useCases, total] = await Promise.all([
+      prisma.useCase.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.useCase.count({ where }),
+    ])
+    return { data: useCases.map(normalizeUseCase), total }
+  }
+
+  async create(input: Omit<UseCase, 'id' | 'createdAt' | 'updatedAt'>): Promise<UseCase> {
+    try {
+      const useCase = await prisma.useCase.create({ data: input })
+      return normalizeUseCase(useCase)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
+  }
+
+  async update(id: string, input: Partial<UseCase>): Promise<UseCase | null> {
+    try {
+      const useCase = await prisma.useCase.update({
+        where: { id },
+        data: { ...input, updatedAt: new Date() },
+      })
+      return normalizeUseCase(useCase)
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
+    }
+  }
+
+  async delete(id: string): Promise<boolean> {
+    try {
+      await prisma.useCase.delete({ where: { id } })
+      return true
+    } catch (err) {
+      if (isPrismaNotFound(err)) return false
+      throw translatePrismaError(err)
+    }
   }
 }

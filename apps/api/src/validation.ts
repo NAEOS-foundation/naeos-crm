@@ -178,3 +178,85 @@ export const followUpQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
 })
+
+export const createContributorSchema = z.object({
+  name: z.string().min(1),
+  role: z.enum(['DEVELOPER', 'DESIGNER', 'REVIEWER', 'MAINTAINER', 'ADVISOR']),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).default('ACTIVE'),
+  communityId: z.string().optional(),
+  ownerId: z.string().optional(),
+})
+
+export const updateContributorSchema = createContributorSchema.partial().strict()
+
+export const contributorQuerySchema = z.object({
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
+  role: z.enum(['DEVELOPER', 'DESIGNER', 'REVIEWER', 'MAINTAINER', 'ADVISOR']).optional(),
+  communityId: z.string().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const createPartnerSchema = z.object({
+  name: z.string().min(1),
+  partnerType: z.enum(['TECHNOLOGY', 'INTEGRATION', 'STRATEGIC', 'CHANNEL', 'RESELLER']),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).default('ACTIVE'),
+  ownerId: z.string().optional(),
+})
+
+export const updatePartnerSchema = createPartnerSchema.partial().strict()
+
+export const partnerQuerySchema = z.object({
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
+  partnerType: z.enum(['TECHNOLOGY', 'INTEGRATION', 'STRATEGIC', 'CHANNEL', 'RESELLER']).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const createCommunitySchema = z.object({
+  name: z.string().min(1),
+  purpose: z.string().optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).default('ACTIVE'),
+  ownerId: z.string().optional(),
+})
+
+export const updateCommunitySchema = createCommunitySchema.partial().strict()
+
+export const communityQuerySchema = z.object({
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const createInvestorSchema = z.object({
+  name: z.string().min(1),
+  investorType: z.enum(['ANGEL', 'SEED', 'VENTURE', 'STRATEGIC', 'OTHER']),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).default('ACTIVE'),
+  ownerId: z.string().optional(),
+})
+
+export const updateInvestorSchema = createInvestorSchema.partial().strict()
+
+export const investorQuerySchema = z.object({
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
+  investorType: z.enum(['ANGEL', 'SEED', 'VENTURE', 'STRATEGIC', 'OTHER']).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const createUseCaseSchema = z.object({
+  opportunityId: z.string().min(1),
+  title: z.string().min(1),
+  summary: z.string().optional(),
+  value: z.number().min(0).optional(),
+  ownerId: z.string().optional(),
+})
+
+export const updateUseCaseSchema = createUseCaseSchema.partial().strict()
+
+export const useCaseQuerySchema = z.object({
+  opportunityId: z.string().optional(),
+  ownerId: z.string().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})

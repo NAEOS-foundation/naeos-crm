@@ -21,7 +21,7 @@ export interface AuthorizationService {
   ): AuthorizationDecision
 }
 
-const POLICY_VERSION = '2026.09.15'
+const POLICY_VERSION = '2026.09.16'
 
 type ResourceAction = `${string}:${string}`
 
@@ -58,6 +58,21 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<ResourceAction>> = {
     'follow-up:write',
     'follow-up:delete',
     'analytics:read',
+    'contributor:read',
+    'contributor:write',
+    'contributor:delete',
+    'partner:read',
+    'partner:write',
+    'partner:delete',
+    'community:read',
+    'community:write',
+    'community:delete',
+    'investor:read',
+    'investor:write',
+    'investor:delete',
+    'use-case:read',
+    'use-case:write',
+    'use-case:delete',
     'audit:read',
     'dashboard:read',
   ]),
@@ -88,6 +103,21 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<ResourceAction>> = {
     'follow-up:write',
     'follow-up:delete',
     'analytics:read',
+    'contributor:read',
+    'contributor:write',
+    'contributor:delete',
+    'partner:read',
+    'partner:write',
+    'partner:delete',
+    'community:read',
+    'community:write',
+    'community:delete',
+    'investor:read',
+    'investor:write',
+    'investor:delete',
+    'use-case:read',
+    'use-case:write',
+    'use-case:delete',
     'audit:read',
     'dashboard:read',
   ]),
@@ -106,6 +136,11 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<ResourceAction>> = {
     'follow-up:read',
     'follow-up:write',
     'analytics:read',
+    'contributor:read',
+    'partner:read',
+    'community:read',
+    'investor:read',
+    'use-case:read',
     'dashboard:read',
   ]),
 }

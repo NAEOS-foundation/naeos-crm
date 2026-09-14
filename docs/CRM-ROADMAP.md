@@ -5,7 +5,8 @@
 - Phase 0 (architecture foundation) is delivered via `docs/` (architecture, domain model, security model, audit model, API surface, ADRs).
 - Phase 1 (foundation) is delivered and open as PR #1: full-stack monorepo with auth, RBAC, CRUD + audit, dashboard, and a React web app.
 - Phase 2 (pipeline and campaigns) is complete: opportunities, pipeline stages, campaigns and sequences, follow-ups, analytics, RBAC, audit, and web UI.
-- Phases 3–6 remain future work per the ordering below.
+- Phase 3 (ecosystem) is complete: contributors, partners, communities, investors, and NAEOS use cases with RBAC, audit, seed data, and web UI.
+- Phases 4–6 remain future work per the ordering below.
 
 ## Phase 0 — Architecture foundation
 
@@ -75,6 +76,18 @@ The pipeline and campaign layer evolve from the same domain boundaries without i
 
 ## Phase 3 — Ecosystem
 
+### Status
+
+Complete. Phase 3 extends the model into ecosystem relationship tracking beyond commercial relationships (see `docs/adr/ADR-007-ecosystem-use-cases.md`):
+
+- Prisma models and migration for communities, contributors, partners, investors, and use cases, plus four shared enums (`EcosystemStatus`, `ContributorRole`, `PartnerType`, `InvestorType`).
+- Contributors have an optional single affiliation to a community (`onDelete: SetNull`); use cases are attached to an opportunity (`onDelete: Cascade`) with an optional monetary value.
+- Repository ports, facades, validation, RBAC (`contributor`, `partner`, `community`, `investor`, `use-case`), and REST routes in `@naeos-crm/api`.
+- Write access to ecosystem records is limited to admins and managers; all roles can read them.
+- React web pages for Contributors, Partners, Communities, Investors, and Use Cases with role-aware navigation.
+- Seed data for a community, contributors, partners, investors, and a use case tied to the first seeded opportunity.
+- Tests covering service-layer facades, authorization policy, and API integration (Phase 3 suites).
+
 ### Scope
 
 - contributors
@@ -85,7 +98,7 @@ The pipeline and campaign layer evolve from the same domain boundaries without i
 
 ### Notes
 
-This phase expands the model beyond commercial relationship management into ecosystem relationship tracking.
+This phase expands the model beyond commercial relationship management into ecosystem relationship tracking. Contributor-to-community affiliation is modeled as a single optional link rather than a many-to-many relation; this is a deliberate simplification that can be promoted to M2M in a future phase without schema churn on the foreign key side.
 
 ## Phase 4 — Governance
 
