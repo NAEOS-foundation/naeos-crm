@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  roles     String[]
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  industry    String?
+  region      String?
+  status      String
+  ownerId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  companyId String
+  fullName  String
+  email     String?
+  role      String?
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Lead {
+  id        String   @id @default(cuid())
+  companyId String
+  source    String
+  status    String
+  ownerId   String?
+  score     Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Activity {
+  id         String   @id @default(cuid())
+  companyId  String?
+  contactId  String?
+  type       String
+  channel    String?
+  summary    String
+  occurredAt DateTime
+  ownerId    String?
+  createdAt  DateTime @default(now())
+}
+
+model Task {
+  id        String   @id @default(cuid())
+  companyId String?
+  assigneeId String?
+  subject   String
+  dueAt     DateTime?
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditEvent {
+  id               String   @id @default(cuid())
+  actorId          String?
+  actorType        String?
+  action           String
+  entityType       String
+  entityId         String
+  requestId        String?
+  source           String?
+  result           String
+  reason           String?
+  policyVersion    String?
+  previousState    Json?
+  newState         Json?
+  authorization    Json?
+  createdAt        DateTime @default(now())
+}
