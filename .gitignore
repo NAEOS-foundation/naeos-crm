@@ -7,3 +7,8 @@ coverage/
 dist/
 .vite/
 .DS_Store
+
+# TypeScript build output (Vite handles the real build)
+apps/web/src/**/*.js
+apps/web/src/**/*.js.map
+apps/web/src/**/*.d.ts

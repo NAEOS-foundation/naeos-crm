@@ -7,86 +7,180 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CompanyStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+enum ContactStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+enum LeadStatus {
+  NEW
+  QUALIFIED
+  NURTURE
+  DISQUALIFIED
+}
+
+enum ActivityType {
+  EMAIL
+  CALL
+  MEETING
+  TASK
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILURE
+}
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
+  id        String     @id @default(cuid())
+  email     String     @unique
   name      String
-  roles     String[]
-  status    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  roles     UserRole[]
+  status    UserStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  ownedCompanies   Company[]   @relation("CompanyOwner")
+  ownedLeads       Lead[]      @relation("LeadOwner")
+  assignedTasks    Task[]      @relation("TaskAssignee")
+  authoredActivities Activity[] @relation("ActivityAuthor")
 }
 
 model Company {
-  id          String   @id @default(cuid())
-  name        String
-  industry    String?
-  region      String?
-  status      String
-  ownerId     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String        @id @default(cuid())
+  name      String
+  industry  String?
+  region    String?
+  status    CompanyStatus @default(ACTIVE)
+  ownerId   String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  owner      User?        @relation("CompanyOwner", fields: [ownerId], references: [id])
+  contacts   Contact[]
+  leads      Lead[]
+  activities Activity[]
+  tasks      Task[]
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([name])
 }
 
 model Contact {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   companyId String
   fullName  String
   email     String?
   role      String?
-  status    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status    ContactStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  company  Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([status])
 }
 
 model Lead {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   companyId String
   source    String
-  status    String
+  status    LeadStatus @default(NEW)
   ownerId   String?
   score     Int?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  owner   User?   @relation("LeadOwner", fields: [ownerId], references: [id])
+
+  @@index([companyId])
+  @@index([ownerId])
+  @@index([status])
 }
 
 model Activity {
-  id         String   @id @default(cuid())
+  id         String       @id @default(cuid())
   companyId  String?
   contactId  String?
-  type       String
+  type       ActivityType
   channel    String?
   summary    String
   occurredAt DateTime
   ownerId    String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime     @default(now())
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  owner   User?    @relation("ActivityAuthor", fields: [ownerId], references: [id])
+
+  @@index([companyId])
+  @@index([ownerId])
+  @@index([occurredAt])
 }
 
 model Task {
-  id        String   @id @default(cuid())
-  companyId String?
+  id         String     @id @default(cuid())
+  companyId  String?
   assigneeId String?
-  subject   String
-  dueAt     DateTime?
-  status    String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  subject    String
+  dueAt      DateTime?
+  status     TaskStatus @default(OPEN)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  company  Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  assignee User?    @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  @@index([companyId])
+  @@index([assigneeId])
+  @@index([status])
 }
 
 model AuditEvent {
-  id               String   @id @default(cuid())
-  actorId          String?
-  actorType        String?
-  action           String
-  entityType       String
-  entityId         String
-  requestId        String?
-  source           String?
-  result           String
-  reason           String?
-  policyVersion    String?
-  previousState    Json?
-  newState         Json?
-  authorization    Json?
-  createdAt        DateTime @default(now())
+  id            String      @id @default(cuid())
+  actorId       String?
+  actorType     String?
+  action        String
+  entityType    String
+  entityId      String
+  requestId     String?
+  source        String?
+  result        AuditResult
+  reason        String?
+  policyVersion String?
+  previousState Json?
+  newState      Json?
+  authorization Json?
+  createdAt     DateTime    @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([requestId])
+  @@index([createdAt])
 }

@@ -21,6 +21,65 @@ export interface AuthorizationService {
   ): AuthorizationDecision
 }
 
+const POLICY_VERSION = '2026.09.14'
+
+type ResourceAction = `${string}:${string}`
+
+const ROLE_PERMISSIONS: Record<UserRole, Set<ResourceAction>> = {
+  admin: new Set([
+    'user:read',
+    'user:write',
+    'user:delete',
+    'company:read',
+    'company:write',
+    'company:delete',
+    'contact:read',
+    'contact:write',
+    'contact:delete',
+    'lead:read',
+    'lead:write',
+    'lead:delete',
+    'activity:read',
+    'activity:write',
+    'activity:delete',
+    'task:read',
+    'task:write',
+    'task:delete',
+    'audit:read',
+    'dashboard:read',
+  ]),
+  manager: new Set([
+    'user:read',
+    'company:read',
+    'company:write',
+    'contact:read',
+    'contact:write',
+    'contact:delete',
+    'lead:read',
+    'lead:write',
+    'lead:delete',
+    'activity:read',
+    'activity:write',
+    'activity:delete',
+    'task:read',
+    'task:write',
+    'task:delete',
+    'audit:read',
+    'dashboard:read',
+  ]),
+  member: new Set([
+    'company:read',
+    'contact:read',
+    'contact:write',
+    'lead:read',
+    'activity:read',
+    'activity:write',
+    'task:read',
+    'task:write',
+    'dashboard:read',
+  ]),
+}
+
 export class DefaultAuthorizationService implements AuthorizationService {
   authorize(
     actor: AuthenticatedActor,
@@ -28,29 +87,33 @@ export class DefaultAuthorizationService implements AuthorizationService {
     action: string,
     _context?: Record<string, unknown>,
   ): AuthorizationDecision {
-    if (resource === 'company' && action === 'read') {
-      return { allow: true, reason: 'default-company-read-policy', policyVersion: '2026.09.14' }
-    }
-
-    if (resource === 'company' && action === 'write') {
-      const permittedRoles = new Set(['admin', 'manager'])
-      const hasWriteAccess = actor.roles.some((role) => permittedRoles.has(role))
-
-      if (hasWriteAccess) {
-        return { allow: true, reason: 'default-company-write-policy', policyVersion: '2026.09.14' }
-      }
-
+    if (!actor || !actor.roles || actor.roles.length === 0) {
       return {
         allow: false,
-        reason: 'insufficient-role-for-company-write',
-        policyVersion: '2026.09.14',
+        reason: 'no-roles-assigned',
+        policyVersion: POLICY_VERSION,
+      }
+    }
+
+    const permission = `${resource}:${action}` as ResourceAction
+
+    const hasPermission = actor.roles.some((role) => {
+      const rolePerms = ROLE_PERMISSIONS[role]
+      return rolePerms?.has(permission) ?? false
+    })
+
+    if (hasPermission) {
+      return {
+        allow: true,
+        reason: `role-granted-${permission}`,
+        policyVersion: POLICY_VERSION,
       }
     }
 
     return {
       allow: false,
-      reason: 'authorization-not-configured',
-      policyVersion: '2026.09.14',
+      reason: `insufficient-role-for-${permission}`,
+      policyVersion: POLICY_VERSION,
     }
   }
 }
