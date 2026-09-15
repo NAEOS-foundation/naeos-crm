@@ -62,9 +62,10 @@ A runtime-denied action must never silently succeed, and the whole lifecycle —
 ### Negative
 
 - The server now queries the policy store on every authorized request (`requireAuth`); this is a per-request DB lookup until caching is introduced.
+- `GoGateRequest` records `requestedBy`/`approvedBy` as plain actor-id strings (like `AuditEvent.actorId`) rather than foreign keys, so development-mode actors (`dev-user`) and system actors can drive the gate without existing user rows.
 - `role` as a free-text column means rule roles are validated only by the review process, not the schema enum.
 - The `READY` initial status is defined but requests are created directly as `WAITING_FOR_GO` or `REJECTED`, so `READY` is reserved for future pre-flight flows.
 
 ## Notes
 
-Migrations: `20260915033058_phase4_go_gate_policy` adds `PolicyRule` and `GoGateRequest`; `20260915040557_policy_rule_role_string` converts `role` from enum to `TEXT` for wildcard support (the generated SQL was edited to add a `DEFAULT 'MEMBER'` before the column reset so existing rows survive the type change). Audit event families introduced: `go-gate.*` and `policy-rule.*`.
+Migrations: `20260915033058_phase4_go_gate_policy` adds `PolicyRule` and `GoGateRequest`; `20260915040557_policy_rule_role_string` converts `role` from enum to `TEXT` for wildcard support (the generated SQL was edited to add a `DEFAULT 'MEMBER'` before the column reset so existing rows survive the type change); `go_gate_actor_scalars` drops the `User` relations on `GoGateRequest` so `requestedBy`/`approvedBy` behave like `AuditEvent.actorId`. Audit event families introduced: `go-gate.*` and `policy-rule.*`.
