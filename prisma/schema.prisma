@@ -119,6 +119,32 @@ enum PartnerType {
   RESELLER
 }
 
+enum PolicyEffect {
+  ALLOW
+  DENY
+}
+
+enum GoGateStatus {
+  READY
+  WAITING_FOR_GO
+  APPROVED
+  EXECUTING
+  EXECUTED
+  FAILED
+  EXPIRED
+  REJECTED
+}
+
+enum GoGateActionType {
+  SEND_EMAIL
+  SEND_MESSAGE
+  PUBLISH_POST
+  CONTACT_PROSPECT
+  CREATE_ISSUE
+  TRIGGER_WORKFLOW
+  MODIFY_EXTERNAL_SYSTEM
+}
+
 enum InvestorType {
   ANGEL
   SEED
@@ -153,6 +179,8 @@ model User {
   ownedCommunities  Community[]   @relation("CommunityOwner")
   ownedInvestors    Investor[]    @relation("InvestorOwner")
   ownedUseCases     UseCase[]     @relation("UseCaseOwner")
+  requestedGoGateRequests GoGateRequest[] @relation("GoGateRequester")
+  approvedGoGateRequests  GoGateRequest[] @relation("GoGateApprover")
 }
 
 model Company {
@@ -443,4 +471,49 @@ model UseCase {
 
   @@index([opportunityId])
   @@index([ownerId])
+}
+
+model PolicyRule {
+  id            String       @id @default(cuid())
+  resource      String
+  action        String
+  role          String
+  effect        PolicyEffect
+  priority      Int          @default(0)
+  enabled       Boolean      @default(true)
+  policyVersion String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([resource, action])
+  @@index([role])
+  @@index([enabled])
+  @@index([policyVersion])
+}
+
+model GoGateRequest {
+  id               String             @id @default(cuid())
+  actionType       GoGateActionType
+  target           String
+  payload          Json?
+  status           GoGateStatus       @default(READY)
+  policyVersion    String?
+  reason           String?
+  requestedBy      String?
+  approvedBy       String?
+  expiresAt        DateTime?
+  executedAt       DateTime?
+  verifiedAt       DateTime?
+  providerResponse Json?
+  result           String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  requester User? @relation("GoGateRequester", fields: [requestedBy], references: [id])
+  approver  User? @relation("GoGateApprover", fields: [approvedBy], references: [id])
+
+  @@index([status])
+  @@index([requestedBy])
+  @@index([actionType])
+  @@index([createdAt])
 }

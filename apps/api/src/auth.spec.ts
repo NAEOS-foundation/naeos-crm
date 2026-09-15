@@ -252,4 +252,86 @@ describe('ApiAuthGuard', () => {
       ).allow,
     ).toBe(false)
   })
+
+  it('grants go-gate and policy access by role', () => {
+    expect(
+      guard.authorize(
+        { actor: { id: 'u1', email: 'a@b.c', roles: ['member'] } },
+        'go-gate',
+        'read',
+      ).allow,
+    ).toBe(true)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u2', email: 'a@b.c', roles: ['member'] } },
+        'go-gate',
+        'write',
+      ).allow,
+    ).toBe(true)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u3', email: 'a@b.c', roles: ['manager'] } },
+        'go-gate',
+        'approve',
+      ).allow,
+    ).toBe(true)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u4', email: 'a@b.c', roles: ['member'] } },
+        'go-gate',
+        'approve',
+      ).allow,
+    ).toBe(false)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u5', email: 'a@b.c', roles: ['admin'] } },
+        'go-gate',
+        'execute',
+      ).allow,
+    ).toBe(true)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u6', email: 'a@b.c', roles: ['manager'] } },
+        'go-gate',
+        'execute',
+      ).allow,
+    ).toBe(false)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u7', email: 'a@b.c', roles: ['admin'] } },
+        'policy',
+        'read',
+      ).allow,
+    ).toBe(true)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u8', email: 'a@b.c', roles: ['member'] } },
+        'policy',
+        'read',
+      ).allow,
+    ).toBe(false)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u9', email: 'a@b.c', roles: ['admin'] } },
+        'policy',
+        'write',
+      ).allow,
+    ).toBe(true)
+
+    expect(
+      guard.authorize(
+        { actor: { id: 'u10', email: 'a@b.c', roles: ['manager'] } },
+        'policy',
+        'write',
+      ).allow,
+    ).toBe(false)
+  })
 })

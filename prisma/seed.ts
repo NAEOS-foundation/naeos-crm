@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, UserStatus, CompanyStatus, ContactStatus, LeadStatus, ActivityType, TaskStatus, OpportunityStage, CampaignType, CampaignStatus, CampaignStepActionType, CampaignStepStatus, FollowUpStatus, ContributorRole, EcosystemStatus, PartnerType, InvestorType } from '@prisma/client'
+import { PrismaClient, UserRole, UserStatus, CompanyStatus, ContactStatus, LeadStatus, ActivityType, TaskStatus, OpportunityStage, CampaignType, CampaignStatus, CampaignStepActionType, CampaignStepStatus, FollowUpStatus, ContributorRole, EcosystemStatus, PartnerType, InvestorType, PolicyEffect, GoGateActionType } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -178,6 +178,22 @@ async function seedPhase3Data() {
   }
 }
 
+async function seedPhase4Data() {
+  const POLICY_VERSION = '2026.09.17'
+
+  if ((await prisma.policyRule.count()) === 0) {
+    await prisma.policyRule.createMany({
+      data: [
+        { resource: 'go-gate', action: GoGateActionType.SEND_EMAIL, role: UserRole.MANAGER, effect: PolicyEffect.ALLOW, priority: 0, enabled: true, policyVersion: POLICY_VERSION },
+        { resource: 'go-gate', action: GoGateActionType.SEND_EMAIL, role: UserRole.ADMIN, effect: PolicyEffect.ALLOW, priority: 0, enabled: true, policyVersion: POLICY_VERSION },
+        { resource: 'go-gate', action: GoGateActionType.CONTACT_PROSPECT, role: UserRole.MANAGER, effect: PolicyEffect.ALLOW, priority: 0, enabled: true, policyVersion: POLICY_VERSION },
+        { resource: 'policy', action: 'write', role: UserRole.ADMIN, effect: PolicyEffect.ALLOW, priority: 0, enabled: true, policyVersion: POLICY_VERSION },
+      ],
+    })
+    console.log('Policy rules seeded.')
+  }
+}
+
 async function main() {
   const existing = await prisma.user.count()
   if (existing > 0) {
@@ -185,6 +201,7 @@ async function main() {
     await seedPipelineStages()
     await seedPhase2Data()
     await seedPhase3Data()
+    await seedPhase4Data()
     return
   }
 
@@ -289,6 +306,7 @@ async function main() {
   await seedPipelineStages()
   await seedPhase2Data()
   await seedPhase3Data()
+  await seedPhase4Data()
 }
 
 main()

@@ -6,7 +6,8 @@
 - Phase 1 (foundation) is delivered and open as PR #1: full-stack monorepo with auth, RBAC, CRUD + audit, dashboard, and a React web app.
 - Phase 2 (pipeline and campaigns) is complete: opportunities, pipeline stages, campaigns and sequences, follow-ups, analytics, RBAC, audit, and web UI.
 - Phase 3 (ecosystem) is complete: contributors, partners, communities, investors, and NAEOS use cases with RBAC, audit, seed data, and web UI.
-- Phases 4–6 remain future work per the ordering below.
+- Phase 4 (governance) is complete: versioned policy rules, GO-Gate external action gate with approval lifecycle, execution verification, policy-aware `requireAuth`, advanced audit, seed data, and web UI.
+- Phases 5–6 remain future work per the ordering below.
 
 ## Phase 0 — Architecture foundation
 
@@ -102,6 +103,21 @@ This phase expands the model beyond commercial relationship management into ecos
 
 ## Phase 4 — Governance
 
+### Status
+
+Complete. Phase 4 introduces the policy and external action control plane for consequential operations (see `docs/adr/ADR-008-go-gate-policy-rules.md`):
+
+- Prisma models and migration for `PolicyRule` and `GoGateRequest`, including `GoGateStatus` and `GoGateActionType` enums (see `docs/adr/ADR-005-policy-integration-boundary.md` for the original boundary).
+- Versioned policy rules with `resource`/`action`/`role` wildcard support, `priority`, `ALLOW`/`DENY` effects (fail closed on no match), and evaluation that breaks ties in favor of `DENY`. `role` is a text column so `'*'` roles can be persisted.
+- GO-Gate lifecycle `READY → WAITING_FOR_GO → APPROVED → EXECUTING → EXECUTED | FAILED` plus `REJECTED` and `EXPIRED`, with a 15-minute approval window. Requests denied by policy are recorded as `REJECTED` with the decision reason and policy version.
+- Execution verification: after the external adapter returns, the request is marked `EXECUTED`/`verified` or `FAILED`. Adapters (`EmailAdapter`, `GitHubAdapter`) are simulated via `ExternalActionPort` and swappable for real providers.
+- Policy-aware `requireAuth`: DB policy rules are evaluated first and are authoritative when they match; otherwise authorization falls back to the static `UserRole` matrix in `@naeos-crm/auth`. `POLICY_VERSION` bumped to `2026.09.17`.
+- RBAC additions (`go-gate:read/write/approve/execute`, `policy:read/write/delete`) and advanced audit families `go-gate.*` and `policy-rule.*` recorded on every transition.
+- REST routes for `/api/v1/go-gate` (list, create, get, approve, reject, execute) and `/api/v1/policy/rules` (admin CRUD).
+- React web pages for GO-Gate and Policy with role-aware navigation.
+- Seed data for default policy rules covering `go-gate` and `policy` resources.
+- Tests covering the policy adapter (priority, DENY tie-break, fail-closed), service-layer facades, authorization policy, and API integration (Phase 4 suites); 67 API tests total.
+
 ### Scope
 
 - policy integration
@@ -112,7 +128,7 @@ This phase expands the model beyond commercial relationship management into ecos
 
 ### Notes
 
-This phase introduces the policy and external action control plane for consequential operations.
+Policy rules are fail-closed: a consequential external action must be explicitly allowed by a rule. The `READY` state is reserved for future pre-flight flows; requests are currently created directly as `WAITING_FOR_GO` or `REJECTED`. The runtime evaluation queries the policy store on each authorized request; caching is deferred.
 
 ## Phase 5 — AI
 

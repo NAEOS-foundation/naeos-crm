@@ -16,6 +16,16 @@ export type EcosystemStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'
 export type ContributorRole = 'DEVELOPER' | 'DESIGNER' | 'REVIEWER' | 'MAINTAINER' | 'ADVISOR'
 export type PartnerType = 'TECHNOLOGY' | 'INTEGRATION' | 'STRATEGIC' | 'CHANNEL' | 'RESELLER'
 export type InvestorType = 'ANGEL' | 'SEED' | 'VENTURE' | 'STRATEGIC' | 'OTHER'
+export type PolicyEffect = 'ALLOW' | 'DENY'
+export type GoGateStatus = 'READY' | 'WAITING_FOR_GO' | 'APPROVED' | 'EXECUTING' | 'EXECUTED' | 'FAILED' | 'EXPIRED' | 'REJECTED'
+export type GoGateActionType =
+  | 'SEND_EMAIL'
+  | 'SEND_MESSAGE'
+  | 'PUBLISH_POST'
+  | 'CONTACT_PROSPECT'
+  | 'CREATE_ISSUE'
+  | 'TRIGGER_WORKFLOW'
+  | 'MODIFY_EXTERNAL_SYSTEM'
 
 export interface User {
   id: string
@@ -216,6 +226,38 @@ export interface UseCase {
   updatedAt: Date
 }
 
+export interface PolicyRule {
+  id: string
+  resource: string
+  action: string
+  role: string
+  effect: PolicyEffect
+  priority: number
+  enabled: boolean
+  policyVersion: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface GoGateRequest {
+  id: string
+  actionType: GoGateActionType
+  target: string
+  payload?: Record<string, unknown> | null
+  status: GoGateStatus
+  policyVersion?: string
+  reason?: string
+  requestedBy?: string
+  approvedBy?: string
+  expiresAt?: Date | null
+  executedAt?: Date | null
+  verifiedAt?: Date | null
+  providerResponse?: Record<string, unknown> | null
+  result?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
 export interface PipelineStageBreakdown {
   stage: OpportunityStage
   count: number
@@ -407,6 +449,22 @@ export interface UseCaseRepository {
   create(input: Omit<UseCase, 'id' | 'createdAt' | 'updatedAt'>): Promise<UseCase>
   update(id: string, input: Partial<UseCase>): Promise<UseCase | null>
   delete(id: string): Promise<boolean>
+}
+
+export interface PolicyRuleRepository {
+  findById(id: string): Promise<PolicyRule | null>
+  list(filters?: { resource?: string; action?: string; enabled?: boolean }): Promise<PolicyRule[]>
+  findForEvaluation(resource: string, action: string, roles: UserRole[]): Promise<PolicyRule[]>
+  create(input: Omit<PolicyRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<PolicyRule>
+  update(id: string, input: Partial<PolicyRule>): Promise<PolicyRule | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface GoGateRequestRepository {
+  findById(id: string): Promise<GoGateRequest | null>
+  list(filters?: { status?: GoGateStatus; actionType?: GoGateActionType }): Promise<GoGateRequest[]>
+  create(input: Omit<GoGateRequest, 'id' | 'createdAt' | 'updatedAt'>): Promise<GoGateRequest>
+  update(id: string, input: Partial<GoGateRequest>): Promise<GoGateRequest | null>
 }
 
 export interface AnalyticsRepository {

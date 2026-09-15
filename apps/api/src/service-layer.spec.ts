@@ -9,9 +9,11 @@ import {
   CompanyFacade,
   ContactFacade,
   ContributorFacade,
+  GoGateFacade,
   InvestorFacade,
   LeadFacade,
   PartnerFacade,
+  PolicyRuleFacade,
   TaskFacade,
   UseCaseFacade,
   UserFacade,
@@ -28,9 +30,11 @@ import type {
   CompanyReadPort,
   ContactReadPort,
   ContributorReadPort,
+  GoGateRequestReadPort,
   InvestorReadPort,
   LeadReadPort,
   PartnerReadPort,
+  PolicyRuleReadPort,
   TaskReadPort,
   UseCaseReadPort,
   UserReadPort,
@@ -45,9 +49,11 @@ import type {
   Community,
   Company,
   Contributor,
+  GoGateRequest,
   Investor,
   Partner,
   PipelineStage,
+  PolicyRule,
   Opportunity,
   Campaign,
   CampaignStep,
@@ -55,6 +61,7 @@ import type {
   UseCase,
   PipelineAnalyticsSummary,
 } from '@naeos-crm/domain'
+import { GoGateService } from './gate'
 
 function noopSink(): AuditSink {
   return { append: vi.fn().mockResolvedValue(undefined) }
@@ -1058,5 +1065,182 @@ describe('Phase 3 ecosystem and use cases write flow', () => {
     await expect(
       facade.createPartner({ name: 'Blocked', partnerType: 'CHANNEL', status: 'ACTIVE' }, memberMeta),
     ).rejects.toThrow(/admin|manager/i)
+  })
+})
+
+function createPolicyRulePort(): PolicyRuleReadPort & { storage: PolicyRule[] } {
+  const storage: PolicyRule[] = []
+  return {
+    storage,
+    async findById(id) {
+      return storage.find((r) => r.id === id) ?? null
+    },
+    async list() {
+      return { data: [...storage], total: storage.length }
+    },
+    async findForEvaluation(resource, action, roles) {
+      const roleList = roles as unknown as string[]
+      return storage.filter(
+        (r) =>
+          r.enabled &&
+          (r.resource === resource || r.resource === '*') &&
+          (r.action === action || r.action === '*') &&
+          (roleList.includes(r.role) || r.role === '*'),
+      )
+    },
+    async create(input) {
+      const rule: PolicyRule = {
+        ...input,
+        id: `rule-${storage.length + 1}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+      storage.push(rule)
+      return rule
+    },
+    async update(id, input) {
+      const index = storage.findIndex((r) => r.id === id)
+      if (index === -1) return null
+      storage[index] = { ...storage[index], ...input, updatedAt: new Date() }
+      return storage[index]
+    },
+    async delete(id) {
+      const index = storage.findIndex((r) => r.id === id)
+      if (index === -1) return false
+      storage.splice(index, 1)
+      return true
+    },
+  }
+}
+
+function createGoGatePort(): GoGateRequestReadPort & { storage: GoGateRequest[] } {
+  const storage: GoGateRequest[] = []
+  return {
+    storage,
+    async findById(id) {
+      return storage.find((g) => g.id === id) ?? null
+    },
+    async list() {
+      return { data: [...storage], total: storage.length }
+    },
+    async create(input) {
+      const request: GoGateRequest = {
+        ...input,
+        id: `gate-${storage.length + 1}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+      storage.push(request)
+      return request
+    },
+    async update(id, input) {
+      const index = storage.findIndex((g) => g.id === id)
+      if (index === -1) return null
+      storage[index] = { ...storage[index], ...input, updatedAt: new Date() }
+      return storage[index]
+    },
+  }
+}
+
+describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
+  const adminMeta = {
+    actorId: 'user-admin',
+    requestId: 'req-p4-1',
+    actor: { id: 'user-admin', roles: ['admin'] as string[] },
+  }
+  const memberMeta = {
+    actorId: 'user-member',
+    requestId: 'req-p4-2',
+    actor: { id: 'user-member', roles: ['member'] as string[] },
+  }
+
+  function createGateFacade(options: { allow: boolean }) {
+    const requests = createGoGatePort()
+    const policy = {
+      evaluate: vi.fn().mockResolvedValue({
+        allow: options.allow,
+        policyVersion: '2026.09.17',
+        reason: options.allow ? 'policy-rule:allow' : 'policy-rule:deny',
+      }),
+    }
+    const actions = {
+      SEND_EMAIL: { execute: vi.fn().mockResolvedValue({ ok: true, providerResponse: { provider: 'email', payload: {} } }) },
+    }
+    const gate = new GoGateService(requests, policy as any, actions, createAuditService())
+    return { facade: new GoGateFacade(gate), requests }
+  }
+
+  it('creates and manages policy rules with audit events, admin only', async () => {
+    const audit = createAuditService()
+    const store = createPolicyRulePort()
+    const facade = new PolicyRuleFacade(store, audit)
+
+    const rule = await facade.createPolicyRule(
+      { resource: 'go-gate', action: 'SEND_EMAIL', role: 'MANAGER', effect: 'ALLOW', priority: 0, enabled: true, policyVersion: '2026.09.17' },
+      adminMeta,
+    )
+    expect(rule.id).toBeTruthy()
+
+    const updated = await facade.updatePolicyRule(rule.id, { enabled: false }, adminMeta)
+    expect(updated?.enabled).toBe(false)
+
+    const deleted = await facade.deletePolicyRule(rule.id, adminMeta)
+    expect(deleted).toBe(true)
+
+    await expect(
+      facade.createPolicyRule(
+        { resource: 'go-gate', action: 'SEND_EMAIL', role: 'MEMBER', effect: 'DENY', priority: 0, enabled: true, policyVersion: '2026.09.17' },
+        memberMeta,
+      ),
+    ).rejects.toThrow(/admin/i)
+  })
+
+  it('routes allowed GO-Gate requests to WAITING_FOR_GO, then approves and executes', async () => {
+    const { facade } = createGateFacade({ allow: true })
+
+    const request = await facade.requestExecution({
+      actionType: 'SEND_EMAIL',
+      target: 'prospect@naeos.local',
+      requester: { id: 'user-admin', roles: ['ADMIN'] },
+      meta: { requestId: 'req-1', source: 'test' },
+    })
+    expect(request.status).toBe('WAITING_FOR_GO')
+
+    const approved = await facade.approve(request.id, { id: 'user-admin', roles: ['ADMIN'] }, { meta: { requestId: 'req-2' } })
+    expect(approved.status).toBe('APPROVED')
+    expect(approved.expiresAt).toBeTruthy()
+    expect(approved.approvedBy).toBe('user-admin')
+
+    const executed = await facade.execute(approved.id, { id: 'user-admin', roles: ['ADMIN'] }, { requestId: 'req-3' })
+    expect(executed.status).toBe('EXECUTED')
+    expect(executed.result).toBe('verified')
+  })
+
+  it('rejects GO-Gate requests denied by policy and blocks out-of-sequence transitions', async () => {
+    const { facade, requests } = createGateFacade({ allow: false })
+
+    const request = await facade.requestExecution({
+      actionType: 'SEND_EMAIL',
+      target: 'prospect@naeos.local',
+      requester: { id: 'user-member', roles: ['MEMBER'] },
+      meta: { requestId: 'req-4' },
+    })
+    expect(request.status).toBe('REJECTED')
+
+    await expect(
+      facade.approve(request.id, { id: 'user-admin', roles: ['ADMIN'] }, { meta: { requestId: 'req-5' } }),
+    ).rejects.toThrow(/status/)
+
+    const pending = await requests.create({
+      actionType: 'SEND_EMAIL',
+      target: 't@t.local',
+      status: 'WAITING_FOR_GO',
+      requestedBy: 'user-admin',
+    })
+    const executed = await facade.approve(pending.id, { id: 'user-admin', roles: ['ADMIN'] }, { meta: { requestId: 'req-6' } })
+    expect(executed.status).toBe('APPROVED')
+    await expect(
+      facade.approve(executed.id, { id: 'user-admin', roles: ['ADMIN'] }, { meta: { requestId: 'req-7' } }),
+    ).rejects.toThrow(/status/)
   })
 })

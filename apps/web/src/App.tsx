@@ -21,6 +21,8 @@ import { PartnersPage } from './pages/PartnersPage'
 import { CommunitiesPage } from './pages/CommunitiesPage'
 import { InvestorsPage } from './pages/InvestorsPage'
 import { UseCasesPage } from './pages/UseCasesPage'
+import { GoGatePage } from './pages/GoGatePage'
+import { PoliciesPage } from './pages/PoliciesPage'
 
 interface NavItem {
   to: string
@@ -45,6 +47,8 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/communities', label: 'Communities', resource: 'community', action: 'read' },
   { to: '/investors', label: 'Investors', resource: 'investor', action: 'read' },
   { to: '/use-cases', label: 'Use Cases', resource: 'use-case', action: 'read' },
+  { to: '/go-gate', label: 'GO-Gate', resource: 'go-gate', action: 'read' },
+  { to: '/policy', label: 'Policy', resource: 'policy', action: 'read' },
   { to: '/activities', label: 'Activities', resource: 'activity', action: 'read' },
   { to: '/tasks', label: 'Tasks', resource: 'task', action: 'read' },
   { to: '/users', label: 'Users', resource: 'user', action: 'read' },
@@ -124,6 +128,15 @@ export function App() {
           <Route path="/communities" element={<CommunitiesPage />} />
           <Route path="/investors" element={<InvestorsPage />} />
           <Route path="/use-cases" element={<UseCasesPage />} />
+          <Route path="/go-gate" element={<GoGatePage />} />
+          <Route
+            path="/policy"
+            element={
+              <RequirePermission resource="policy" action="read">
+                <PoliciesPage />
+              </RequirePermission>
+            }
+          />
           <Route path="/activities" element={<ActivitiesPage />} />
           <Route path="/tasks" element={<TasksPage />} />
           <Route

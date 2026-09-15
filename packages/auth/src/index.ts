@@ -21,7 +21,7 @@ export interface AuthorizationService {
   ): AuthorizationDecision
 }
 
-const POLICY_VERSION = '2026.09.16'
+export const POLICY_VERSION = '2026.09.17'
 
 type ResourceAction = `${string}:${string}`
 
@@ -73,6 +73,13 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<ResourceAction>> = {
     'use-case:read',
     'use-case:write',
     'use-case:delete',
+    'go-gate:read',
+    'go-gate:write',
+    'go-gate:approve',
+    'go-gate:execute',
+    'policy:read',
+    'policy:write',
+    'policy:delete',
     'audit:read',
     'dashboard:read',
   ]),
@@ -118,6 +125,10 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<ResourceAction>> = {
     'use-case:read',
     'use-case:write',
     'use-case:delete',
+    'go-gate:read',
+    'go-gate:write',
+    'go-gate:approve',
+    'policy:read',
     'audit:read',
     'dashboard:read',
   ]),
@@ -141,6 +152,8 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<ResourceAction>> = {
     'community:read',
     'investor:read',
     'use-case:read',
+    'go-gate:read',
+    'go-gate:write',
     'dashboard:read',
   ]),
 }

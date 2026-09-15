@@ -2,6 +2,7 @@ import { Router } from 'express'
 import type { Request, Response } from 'express'
 import { AuditService } from '@naeos-crm/audit'
 import { DefaultAuthorizationService } from '@naeos-crm/auth'
+import type { UserRole } from '@naeos-crm/domain'
 import {
   buildErrorResponse,
   buildPaginatedMeta,
@@ -19,12 +20,14 @@ import {
   ContributorFacade,
   DashboardFacade,
   FollowUpFacade,
+  GoGateFacade,
   InvestorFacade,
   LeadFacade,
   OpportunityFacade,
   PartnerFacade,
   PipelineAnalyticsFacade,
   PipelineStageFacade,
+  PolicyRuleFacade,
   TaskFacade,
   UseCaseFacade,
   UserFacade,
@@ -41,18 +44,23 @@ import {
   PrismaContributorReadPort,
   PrismaDashboardReadPort,
   PrismaFollowUpReadPort,
+  PrismaGoGateRequestReadPort,
   PrismaInvestorReadPort,
   PrismaLeadReadPort,
   PrismaOpportunityReadPort,
   PrismaPartnerReadPort,
   PrismaPipelineAnalyticsReadPort,
   PrismaPipelineStageReadPort,
+  PrismaPolicyRuleReadPort,
   PrismaTaskReadPort,
   PrismaUseCaseReadPort,
   PrismaUserReadPort,
 } from './prisma-ports'
 import { ApiAuthGuard } from './auth'
 import { asyncHandler } from './middleware'
+import { EmailAdapter, GitHubAdapter } from './integration-adapters'
+import { NAEOSPolicyAdapter } from './policy-adapter'
+import { GoGateService } from './gate'
 import {
   auditQuerySchema,
   campaignQuerySchema,
@@ -67,20 +75,25 @@ import {
   createContactSchema,
   createContributorSchema,
   createFollowUpSchema,
+  createGoGateRequestSchema,
   createInvestorSchema,
   createLeadSchema,
   createOpportunitySchema,
   createPartnerSchema,
   createPipelineStageSchema,
+  createPolicyRuleSchema,
   createTaskSchema,
   createUseCaseSchema,
   createUserSchema,
   followUpQuerySchema,
+  goGateDecisionSchema,
+  goGateQuerySchema,
   idParamSchema,
   investorQuerySchema,
   listByCompanyQuerySchema,
   opportunityQuerySchema,
   partnerQuerySchema,
+  policyRuleQuerySchema,
   reorderPipelineStagesSchema,
   updateActivitySchema,
   updateCampaignSchema,
@@ -95,6 +108,7 @@ import {
   updateOpportunitySchema,
   updatePartnerSchema,
   updatePipelineStageSchema,
+  updatePolicyRuleSchema,
   updateTaskSchema,
   updateUseCaseSchema,
   updateUserSchema,
@@ -133,6 +147,25 @@ const communityFacade = new CommunityFacade(new PrismaCommunityReadPort(), audit
 const investorFacade = new InvestorFacade(new PrismaInvestorReadPort(), auditService)
 const useCaseFacade = new UseCaseFacade(new PrismaUseCaseReadPort(), auditService)
 
+const policyRuleReadPort = new PrismaPolicyRuleReadPort()
+const policyAdapter = new NAEOSPolicyAdapter(policyRuleReadPort)
+const policyRuleFacade = new PolicyRuleFacade(policyRuleReadPort, auditService)
+const goGateService = new GoGateService(
+  new PrismaGoGateRequestReadPort(),
+  policyAdapter,
+  {
+    SEND_EMAIL: new EmailAdapter(),
+    SEND_MESSAGE: new EmailAdapter(),
+    PUBLISH_POST: new EmailAdapter(),
+    CONTACT_PROSPECT: new EmailAdapter(),
+    CREATE_ISSUE: new GitHubAdapter(),
+    TRIGGER_WORKFLOW: new GitHubAdapter(),
+    MODIFY_EXTERNAL_SYSTEM: new GitHubAdapter(),
+  },
+  auditService,
+)
+const goGateFacade = new GoGateFacade(goGateService)
+
 const guard = new ApiAuthGuard(new DefaultAuthorizationService())
 
 export const router = Router()
@@ -145,6 +178,11 @@ const toAuthRole = (role: string): Role => {
   }
   return 'member'
 }
+
+const toPolicyRoles = (roles: string[]): UserRole[] =>
+  roles
+    .map((role) => role.toUpperCase())
+    .filter((role): role is UserRole => role === 'ADMIN' || role === 'MANAGER' || role === 'MEMBER')
 
 async function requireAuth(
   req: Request,
@@ -163,7 +201,15 @@ async function requireAuth(
     roles: req.actor.roles.map(toAuthRole),
   }
 
-  const decision = guard.authorize({ actor }, resource, action)
+  const policyDecision = await policyAdapter.evaluate({
+    resource,
+    action,
+    roles: toPolicyRoles(req.actor.roles),
+  })
+  const hasPolicyRule = !(policyDecision.reason ?? '').startsWith('no-policy-rule')
+  const decision = hasPolicyRule
+    ? { allow: policyDecision.allow, reason: policyDecision.reason, policyVersion: policyDecision.policyVersion }
+    : guard.authorize({ actor }, resource, action)
 
   if (!decision.allow) {
     try {
@@ -1123,4 +1169,132 @@ router.get('/api/v1/audit', asyncHandler(async (req, res) => {
     offset: (query.page - 1) * query.limit,
   })
   res.json({ data: events, meta: buildPaginatedMeta(req.requestId, total, query.limit, (query.page - 1) * query.limit) })
+}))
+
+// ---------- Policy rules ----------
+
+router.get('/api/v1/policy/rules', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'policy', 'read'))) return
+  const query = policyRuleQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await policyRuleFacade.listPolicyRules({
+    resource: query.resource,
+    action: query.action,
+    enabled: query.enabled === 'true' ? true : query.enabled === 'false' ? false : undefined,
+    limit: query.limit,
+    offset,
+  })
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
+}))
+
+router.post('/api/v1/policy/rules', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'policy', 'write'))) return
+  const input = createPolicyRuleSchema.parse(req.body)
+  const rule = await policyRuleFacade.createPolicyRule(input, auditMeta(req))
+  res.status(201).json({ data: rule, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/policy/rules/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'policy', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const rule = await policyRuleFacade.getPolicyRule(id)
+  if (!rule) {
+    res.status(404).json(buildErrorResponse('POLICY_RULE_NOT_FOUND', `Policy rule ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: rule, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/policy/rules/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'policy', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updatePolicyRuleSchema.parse(req.body)
+  const rule = await policyRuleFacade.updatePolicyRule(id, input, auditMeta(req))
+  if (!rule) {
+    res.status(404).json(buildErrorResponse('POLICY_RULE_NOT_FOUND', `Policy rule ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: rule, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/policy/rules/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'policy', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await policyRuleFacade.deletePolicyRule(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('POLICY_RULE_NOT_FOUND', `Policy rule ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- GO-Gate ----------
+
+router.get('/api/v1/go-gate', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'read'))) return
+  const query = goGateQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await goGateFacade.listRequests({
+    status: query.status,
+    actionType: query.actionType,
+    limit: query.limit,
+    offset,
+  })
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
+}))
+
+router.post('/api/v1/go-gate', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'write'))) return
+  const input = createGoGateRequestSchema.parse(req.body)
+  const request = await goGateFacade.requestExecution({
+    actionType: input.actionType,
+    target: input.target,
+    payload: input.payload,
+    requester: { id: req.actor?.id ?? 'unknown', roles: toPolicyRoles(req.actor?.roles ?? []) },
+    meta: { requestId: req.requestId, source: 'api' },
+  })
+  res.status(201).json({ data: request, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/go-gate/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const request = await goGateFacade.getRequest(id)
+  if (!request) {
+    res.status(404).json(buildErrorResponse('GO_GATE_NOT_FOUND', `Go-Gate request ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: request, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.post('/api/v1/go-gate/:id/approve', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'approve'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = goGateDecisionSchema.parse(req.body)
+  const request = await goGateFacade.approve(id, { id: req.actor?.id ?? 'unknown', roles: toPolicyRoles(req.actor?.roles ?? []) }, {
+    reason: input.reason,
+    meta: { requestId: req.requestId, source: 'api' },
+  })
+  res.json({ data: request, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.post('/api/v1/go-gate/:id/reject', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'approve'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = goGateDecisionSchema.parse(req.body)
+  const request = await goGateFacade.reject(id, { id: req.actor?.id ?? 'unknown', roles: toPolicyRoles(req.actor?.roles ?? []) }, {
+    reason: input.reason,
+    meta: { requestId: req.requestId, source: 'api' },
+  })
+  res.json({ data: request, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.post('/api/v1/go-gate/:id/execute', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'execute'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const request = await goGateFacade.execute(id, { id: req.actor?.id ?? 'unknown', roles: toPolicyRoles(req.actor?.roles ?? []) }, {
+    requestId: req.requestId,
+    source: 'api',
+  })
+  res.json({ data: request, meta: buildSuccessMeta(req.requestId) })
 }))

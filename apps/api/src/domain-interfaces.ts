@@ -10,12 +10,14 @@ import type {
   DashboardSummary,
   FollowUp,
   FollowUpAnalyticsSummary,
+  GoGateRequest,
   Investor,
   Lead,
   Opportunity,
   Partner,
   PipelineAnalyticsSummary,
   PipelineStage,
+  PolicyRule,
   Task,
   UseCase,
   User,
@@ -179,6 +181,22 @@ export interface UseCaseReadPort {
   create(input: Omit<UseCase, 'id' | 'createdAt' | 'updatedAt'>): Promise<UseCase>
   update(id: string, input: Partial<UseCase>): Promise<UseCase | null>
   delete(id: string): Promise<boolean>
+}
+
+export interface PolicyRuleReadPort {
+  findById(id: string): Promise<PolicyRule | null>
+  list(params?: { resource?: string; action?: string; enabled?: boolean } & PageQuery): Promise<{ data: PolicyRule[]; total: number }>
+  findForEvaluation(resource: string, action: string, roles: User['roles']): Promise<PolicyRule[]>
+  create(input: Omit<PolicyRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<PolicyRule>
+  update(id: string, input: Partial<PolicyRule>): Promise<PolicyRule | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface GoGateRequestReadPort {
+  findById(id: string): Promise<GoGateRequest | null>
+  list(params?: { status?: GoGateRequest['status']; actionType?: GoGateRequest['actionType'] } & PageQuery): Promise<{ data: GoGateRequest[]; total: number }>
+  create(input: Omit<GoGateRequest, 'id' | 'createdAt' | 'updatedAt'>): Promise<GoGateRequest>
+  update(id: string, input: Partial<GoGateRequest>): Promise<GoGateRequest | null>
 }
 
 export interface PipelineAnalyticsReadPort {

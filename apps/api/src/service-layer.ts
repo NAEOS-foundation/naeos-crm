@@ -9,12 +9,14 @@ import type {
   Contributor,
   FollowUp,
   FollowUpAnalyticsSummary,
+  GoGateRequest,
   Investor,
   Lead,
   Opportunity,
   Partner,
   PipelineAnalyticsSummary,
   PipelineStage,
+  PolicyRule,
   Task,
   User,
   UseCase,
@@ -40,10 +42,12 @@ import type {
   PartnerReadPort,
   PipelineAnalyticsReadPort,
   PipelineStageReadPort,
+  PolicyRuleReadPort,
   TaskReadPort,
   UseCaseReadPort,
   UserReadPort,
 } from './domain-interfaces'
+import { GoGateService } from './gate'
 import { forbidden, HttpError } from './errors'
 
 interface AuditMetadata {
@@ -1408,5 +1412,108 @@ export class AuditFacade {
     offset: number
   }): Promise<{ events: AuditEvent[]; total: number }> {
     return this.auditReadPort.list(params)
+  }
+}
+
+export class PolicyRuleFacade {
+  constructor(
+    private readonly policyRuleReadPort: PolicyRuleReadPort,
+    private readonly audit: AuditService,
+  ) {}
+
+  private async assertAdmin(actor: AuditMetadata['actor']) {
+    if (!actor) throw forbidden('No authenticated actor')
+    const isAdmin = actor.roles.includes('admin')
+    if (!isAdmin) throw forbidden('Only admins can manage policy rules')
+  }
+
+  async getPolicyRule(id: string) {
+    return this.policyRuleReadPort.findById(id)
+  }
+
+  async listPolicyRules(params?: { resource?: string; action?: string; enabled?: boolean } & PageQuery) {
+    return this.policyRuleReadPort.list(params)
+  }
+
+  async createPolicyRule(input: Omit<PolicyRule, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    await this.assertAdmin(auditMeta.actor)
+    const rule = await this.policyRuleReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'policy-rule.created',
+      entityType: 'policy-rule',
+      entityId: rule.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: rule as unknown as Record<string, unknown>,
+    })
+    return rule
+  }
+
+  async updatePolicyRule(id: string, input: Partial<PolicyRule>, auditMeta: AuditMetadata) {
+    await this.assertAdmin(auditMeta.actor)
+    const previous = await this.policyRuleReadPort.findById(id)
+    const rule = await this.policyRuleReadPort.update(id, input)
+
+    if (!rule) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'policy-rule.updated',
+      entityType: 'policy-rule',
+      entityId: rule.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: rule as unknown as Record<string, unknown>,
+    })
+    return rule
+  }
+
+  async deletePolicyRule(id: string, auditMeta: AuditMetadata) {
+    await this.assertAdmin(auditMeta.actor)
+    const previous = await this.policyRuleReadPort.findById(id)
+    const deleted = await this.policyRuleReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'policy-rule.deleted',
+        entityType: 'policy-rule',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+    return deleted
+  }
+}
+
+export class GoGateFacade {
+  constructor(private readonly gate: GoGateService) {}
+
+  async getRequest(id: string) {
+    return this.gate.getRequest(id)
+  }
+
+  async listRequests(params?: { status?: GoGateRequest['status']; actionType?: GoGateRequest['actionType'] } & PageQuery) {
+    return this.gate.listRequests(params)
+  }
+
+  async requestExecution(input: Parameters<GoGateService['requestExecution']>[0]) {
+    return this.gate.requestExecution(input)
+  }
+
+  async approve(id: string, approver: Parameters<GoGateService['approve']>[1], input: Parameters<GoGateService['approve']>[2]) {
+    return this.gate.approve(id, approver, input)
+  }
+
+  async reject(id: string, approver: Parameters<GoGateService['reject']>[1], input: Parameters<GoGateService['reject']>[2]) {
+    return this.gate.reject(id, approver, input)
+  }
+
+  async execute(id: string, executor: Parameters<GoGateService['execute']>[1], meta: Parameters<GoGateService['execute']>[2]) {
+    return this.gate.execute(id, executor, meta)
   }
 }

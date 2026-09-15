@@ -13,6 +13,7 @@ import type {
   DashboardSummary,
   FollowUp,
   FollowUpAnalyticsSummary,
+  GoGateRequest,
   Investor,
   Lead,
   Opportunity,
@@ -20,6 +21,7 @@ import type {
   Partner,
   PipelineAnalyticsSummary,
   PipelineStage,
+  PolicyRule,
   Task,
   UseCase,
   User,
@@ -36,12 +38,14 @@ import type {
   ContributorReadPort,
   DashboardReadPort,
   FollowUpReadPort,
+  GoGateRequestReadPort,
   InvestorReadPort,
   LeadReadPort,
   OpportunityReadPort,
   PartnerReadPort,
   PipelineAnalyticsReadPort,
   PipelineStageReadPort,
+  PolicyRuleReadPort,
   TaskReadPort,
   UseCaseReadPort,
   UserReadPort,
@@ -1172,6 +1176,38 @@ const normalizeUseCase = (useCase: any): UseCase => ({
   updatedAt: useCase.updatedAt,
 })
 
+const normalizePolicyRule = (rule: any): PolicyRule => ({
+  id: rule.id,
+  resource: rule.resource,
+  action: rule.action,
+  role: rule.role,
+  effect: rule.effect,
+  priority: rule.priority,
+  enabled: rule.enabled,
+  policyVersion: rule.policyVersion,
+  createdAt: rule.createdAt,
+  updatedAt: rule.updatedAt,
+})
+
+const normalizeGoGateRequest = (request: any): GoGateRequest => ({
+  id: request.id,
+  actionType: request.actionType,
+  target: request.target,
+  payload: (request.payload as Record<string, unknown>) ?? undefined,
+  status: request.status,
+  policyVersion: request.policyVersion ?? undefined,
+  reason: request.reason ?? undefined,
+  requestedBy: request.requestedBy ?? undefined,
+  approvedBy: request.approvedBy ?? undefined,
+  expiresAt: request.expiresAt ?? undefined,
+  executedAt: request.executedAt ?? undefined,
+  verifiedAt: request.verifiedAt ?? undefined,
+  providerResponse: (request.providerResponse as Record<string, unknown>) ?? undefined,
+  result: request.result ?? undefined,
+  createdAt: request.createdAt,
+  updatedAt: request.updatedAt,
+})
+
 const normalizeAuditEvent = (event: any): AuditEvent => ({
   id: event.id,
   actorId: event.actorId ?? undefined,
@@ -1522,6 +1558,124 @@ export class PrismaUseCaseReadPort implements UseCaseReadPort {
       return true
     } catch (err) {
       if (isPrismaNotFound(err)) return false
+      throw translatePrismaError(err)
+    }
+  }
+}
+
+export class PrismaPolicyRuleReadPort implements PolicyRuleReadPort {
+  async findById(id: string): Promise<PolicyRule | null> {
+    const rule = await prisma.policyRule.findUnique({ where: { id } })
+    return rule ? normalizePolicyRule(rule) : null
+  }
+
+  async list(
+    params?: { resource?: string; action?: string; enabled?: boolean } & PageQuery,
+  ): Promise<{ data: PolicyRule[]; total: number }> {
+    const where: any = {}
+    if (params?.resource) where.resource = params.resource
+    if (params?.action) where.action = params.action
+    if (params?.enabled !== undefined) where.enabled = params.enabled
+
+    const [rules, total] = await Promise.all([
+      prisma.policyRule.findMany({
+        where,
+        orderBy: [{ priority: 'desc' }, { updatedAt: 'desc' }],
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.policyRule.count({ where }),
+    ])
+    return { data: rules.map(normalizePolicyRule), total }
+  }
+
+  async findForEvaluation(resource: string, action: string, roles: User['roles']): Promise<PolicyRule[]> {
+    const where: any = {
+      enabled: true,
+      resource: { in: [resource, '*'] },
+      action: { in: [action, '*'] },
+      role: { in: [...roles, '*'] },
+    }
+    const rules = await prisma.policyRule.findMany({ where })
+    return rules.map(normalizePolicyRule)
+  }
+
+  async create(input: Omit<PolicyRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<PolicyRule> {
+    try {
+      const rule = await prisma.policyRule.create({ data: input })
+      return normalizePolicyRule(rule)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
+  }
+
+  async update(id: string, input: Partial<PolicyRule>): Promise<PolicyRule | null> {
+    try {
+      const rule = await prisma.policyRule.update({
+        where: { id },
+        data: { ...input, updatedAt: new Date() },
+      })
+      return normalizePolicyRule(rule)
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
+    }
+  }
+
+  async delete(id: string): Promise<boolean> {
+    try {
+      await prisma.policyRule.delete({ where: { id } })
+      return true
+    } catch (err) {
+      if (isPrismaNotFound(err)) return false
+      throw translatePrismaError(err)
+    }
+  }
+}
+
+export class PrismaGoGateRequestReadPort implements GoGateRequestReadPort {
+  async findById(id: string): Promise<GoGateRequest | null> {
+    const request = await prisma.goGateRequest.findUnique({ where: { id } })
+    return request ? normalizeGoGateRequest(request) : null
+  }
+
+  async list(
+    params?: { status?: GoGateRequest['status']; actionType?: GoGateRequest['actionType'] } & PageQuery,
+  ): Promise<{ data: GoGateRequest[]; total: number }> {
+    const where: any = {}
+    if (params?.status) where.status = params.status
+    if (params?.actionType) where.actionType = params.actionType
+
+    const [requests, total] = await Promise.all([
+      prisma.goGateRequest.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: params?.limit,
+        skip: params?.offset,
+      }),
+      prisma.goGateRequest.count({ where }),
+    ])
+    return { data: requests.map(normalizeGoGateRequest), total }
+  }
+
+  async create(input: Omit<GoGateRequest, 'id' | 'createdAt' | 'updatedAt'>): Promise<GoGateRequest> {
+    try {
+      const request = await prisma.goGateRequest.create({ data: input as any })
+      return normalizeGoGateRequest(request)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
+  }
+
+  async update(id: string, input: Partial<GoGateRequest>): Promise<GoGateRequest | null> {
+    try {
+      const request = await prisma.goGateRequest.update({
+        where: { id },
+        data: { ...input, updatedAt: new Date() } as any,
+      })
+      return normalizeGoGateRequest(request)
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
       throw translatePrismaError(err)
     }
   }

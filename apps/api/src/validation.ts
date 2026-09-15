@@ -260,3 +260,40 @@ export const useCaseQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
 })
+
+export const createPolicyRuleSchema = z.object({
+  resource: z.string().min(1),
+  action: z.string().min(1),
+  role: z.string().min(1),
+  effect: z.enum(['ALLOW', 'DENY']),
+  priority: z.number().int().default(0),
+  enabled: z.boolean().default(true),
+  policyVersion: z.string().min(1),
+})
+
+export const updatePolicyRuleSchema = createPolicyRuleSchema.partial().strict()
+
+export const policyRuleQuerySchema = z.object({
+  resource: z.string().optional(),
+  action: z.string().optional(),
+  enabled: z.enum(['true', 'false']).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const createGoGateRequestSchema = z.object({
+  actionType: z.enum(['SEND_EMAIL', 'SEND_MESSAGE', 'PUBLISH_POST', 'CONTACT_PROSPECT', 'CREATE_ISSUE', 'TRIGGER_WORKFLOW', 'MODIFY_EXTERNAL_SYSTEM']),
+  target: z.string().min(1),
+  payload: z.record(z.string(), z.unknown()).optional(),
+})
+
+export const goGateQuerySchema = z.object({
+  status: z.enum(['READY', 'WAITING_FOR_GO', 'APPROVED', 'EXECUTING', 'EXECUTED', 'FAILED', 'EXPIRED', 'REJECTED']).optional(),
+  actionType: z.enum(['SEND_EMAIL', 'SEND_MESSAGE', 'PUBLISH_POST', 'CONTACT_PROSPECT', 'CREATE_ISSUE', 'TRIGGER_WORKFLOW', 'MODIFY_EXTERNAL_SYSTEM']).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const goGateDecisionSchema = z.object({
+  reason: z.string().optional(),
+})
