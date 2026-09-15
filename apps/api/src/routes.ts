@@ -2,6 +2,7 @@ import { Router } from 'express'
 import type { Request, Response } from 'express'
 import { AuditService } from '@naeos-crm/audit'
 import { DefaultAuthorizationService } from '@naeos-crm/auth'
+import type { UserRole } from '@naeos-crm/domain'
 import {
   buildErrorResponse,
   buildPaginatedMeta,
@@ -13,15 +14,22 @@ import {
   AuditFacade,
   CampaignFacade,
   CampaignStepFacade,
+  CommunityFacade,
   CompanyFacade,
   ContactFacade,
+  ContributorFacade,
   DashboardFacade,
   FollowUpFacade,
+  GoGateFacade,
+  InvestorFacade,
   LeadFacade,
   OpportunityFacade,
+  PartnerFacade,
   PipelineAnalyticsFacade,
   PipelineStageFacade,
+  PolicyRuleFacade,
   TaskFacade,
+  UseCaseFacade,
   UserFacade,
 } from './service-layer'
 import {
@@ -30,50 +38,81 @@ import {
   PrismaAuditSink,
   PrismaCampaignReadPort,
   PrismaCampaignStepReadPort,
+  PrismaCommunityReadPort,
   PrismaCompanyReadPort,
   PrismaContactReadPort,
+  PrismaContributorReadPort,
   PrismaDashboardReadPort,
   PrismaFollowUpReadPort,
+  PrismaGoGateRequestReadPort,
+  PrismaInvestorReadPort,
   PrismaLeadReadPort,
   PrismaOpportunityReadPort,
+  PrismaPartnerReadPort,
   PrismaPipelineAnalyticsReadPort,
   PrismaPipelineStageReadPort,
+  PrismaPolicyRuleReadPort,
   PrismaTaskReadPort,
+  PrismaUseCaseReadPort,
   PrismaUserReadPort,
 } from './prisma-ports'
 import { ApiAuthGuard } from './auth'
 import { asyncHandler } from './middleware'
+import { EmailAdapter, GitHubAdapter } from './integration-adapters'
+import { NAEOSPolicyAdapter } from './policy-adapter'
+import { GoGateService } from './gate'
 import {
   auditQuerySchema,
   campaignQuerySchema,
+  communityQuerySchema,
   companyQuerySchema,
+  contributorQuerySchema,
   createActivitySchema,
   createCampaignSchema,
   createCampaignStepNestedSchema,
+  createCommunitySchema,
   createCompanySchema,
   createContactSchema,
+  createContributorSchema,
   createFollowUpSchema,
+  createGoGateRequestSchema,
+  createInvestorSchema,
   createLeadSchema,
   createOpportunitySchema,
+  createPartnerSchema,
   createPipelineStageSchema,
+  createPolicyRuleSchema,
   createTaskSchema,
+  createUseCaseSchema,
   createUserSchema,
   followUpQuerySchema,
+  goGateDecisionSchema,
+  goGateQuerySchema,
   idParamSchema,
+  investorQuerySchema,
   listByCompanyQuerySchema,
   opportunityQuerySchema,
+  partnerQuerySchema,
+  policyRuleQuerySchema,
   reorderPipelineStagesSchema,
   updateActivitySchema,
   updateCampaignSchema,
   updateCampaignStepSchema,
+  updateCommunitySchema,
   updateCompanySchema,
   updateContactSchema,
+  updateContributorSchema,
   updateFollowUpSchema,
+  updateInvestorSchema,
   updateLeadSchema,
   updateOpportunitySchema,
+  updatePartnerSchema,
   updatePipelineStageSchema,
+  updatePolicyRuleSchema,
   updateTaskSchema,
+  updateUseCaseSchema,
   updateUserSchema,
+  useCaseQuerySchema,
 } from './validation'
 
 const auditSink = new PrismaAuditSink()
@@ -102,6 +141,30 @@ const followUpFacade = new FollowUpFacade(
 const analyticsFacade = new PipelineAnalyticsFacade(new PrismaPipelineAnalyticsReadPort())
 const dashboardFacade = new DashboardFacade(new PrismaDashboardReadPort())
 const auditFacade = new AuditFacade(new PrismaAuditReadPort())
+const contributorFacade = new ContributorFacade(new PrismaContributorReadPort(), auditService)
+const partnerFacade = new PartnerFacade(new PrismaPartnerReadPort(), auditService)
+const communityFacade = new CommunityFacade(new PrismaCommunityReadPort(), auditService)
+const investorFacade = new InvestorFacade(new PrismaInvestorReadPort(), auditService)
+const useCaseFacade = new UseCaseFacade(new PrismaUseCaseReadPort(), auditService)
+
+const policyRuleReadPort = new PrismaPolicyRuleReadPort()
+const policyAdapter = new NAEOSPolicyAdapter(policyRuleReadPort)
+const policyRuleFacade = new PolicyRuleFacade(policyRuleReadPort, auditService)
+const goGateService = new GoGateService(
+  new PrismaGoGateRequestReadPort(),
+  policyAdapter,
+  {
+    SEND_EMAIL: new EmailAdapter(),
+    SEND_MESSAGE: new EmailAdapter(),
+    PUBLISH_POST: new EmailAdapter(),
+    CONTACT_PROSPECT: new EmailAdapter(),
+    CREATE_ISSUE: new GitHubAdapter(),
+    TRIGGER_WORKFLOW: new GitHubAdapter(),
+    MODIFY_EXTERNAL_SYSTEM: new GitHubAdapter(),
+  },
+  auditService,
+)
+const goGateFacade = new GoGateFacade(goGateService)
 
 const guard = new ApiAuthGuard(new DefaultAuthorizationService())
 
@@ -115,6 +178,11 @@ const toAuthRole = (role: string): Role => {
   }
   return 'member'
 }
+
+const toPolicyRoles = (roles: string[]): UserRole[] =>
+  roles
+    .map((role) => role.toUpperCase())
+    .filter((role): role is UserRole => role === 'ADMIN' || role === 'MANAGER' || role === 'MEMBER')
 
 async function requireAuth(
   req: Request,
@@ -133,7 +201,15 @@ async function requireAuth(
     roles: req.actor.roles.map(toAuthRole),
   }
 
-  const decision = guard.authorize({ actor }, resource, action)
+  const policyDecision = await policyAdapter.evaluate({
+    resource,
+    action,
+    roles: toPolicyRoles(req.actor.roles),
+  })
+  const hasPolicyRule = !(policyDecision.reason ?? '').startsWith('no-policy-rule')
+  const decision = hasPolicyRule
+    ? { allow: policyDecision.allow, reason: policyDecision.reason, policyVersion: policyDecision.policyVersion }
+    : guard.authorize({ actor }, resource, action)
 
   if (!decision.allow) {
     try {
@@ -771,6 +847,286 @@ router.delete('/api/v1/follow-ups/:id', asyncHandler(async (req, res) => {
   res.status(204).send()
 }))
 
+// ---------- Contributors ----------
+
+router.get('/api/v1/contributors', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'contributor', 'read'))) return
+  const query = contributorQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await contributorFacade.listContributors({
+    status: query.status,
+    role: query.role,
+    communityId: query.communityId,
+    limit: query.limit,
+    offset,
+  })
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
+}))
+
+router.post('/api/v1/contributors', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'contributor', 'write'))) return
+  const input = createContributorSchema.parse(req.body)
+  const contributor = await contributorFacade.createContributor(input, auditMeta(req))
+  res.status(201).json({ data: contributor, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/contributors/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'contributor', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const contributor = await contributorFacade.getContributor(id)
+  if (!contributor) {
+    res.status(404).json(buildErrorResponse('CONTRIBUTOR_NOT_FOUND', `Contributor ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: contributor, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/contributors/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'contributor', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateContributorSchema.parse(req.body)
+  const contributor = await contributorFacade.updateContributor(id, input, auditMeta(req))
+  if (!contributor) {
+    res.status(404).json(buildErrorResponse('CONTRIBUTOR_NOT_FOUND', `Contributor ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: contributor, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/contributors/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'contributor', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await contributorFacade.deleteContributor(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('CONTRIBUTOR_NOT_FOUND', `Contributor ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Partners ----------
+
+router.get('/api/v1/partners', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'partner', 'read'))) return
+  const query = partnerQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await partnerFacade.listPartners({
+    status: query.status,
+    partnerType: query.partnerType,
+    limit: query.limit,
+    offset,
+  })
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
+}))
+
+router.post('/api/v1/partners', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'partner', 'write'))) return
+  const input = createPartnerSchema.parse(req.body)
+  const partner = await partnerFacade.createPartner(input, auditMeta(req))
+  res.status(201).json({ data: partner, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/partners/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'partner', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const partner = await partnerFacade.getPartner(id)
+  if (!partner) {
+    res.status(404).json(buildErrorResponse('PARTNER_NOT_FOUND', `Partner ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: partner, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/partners/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'partner', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updatePartnerSchema.parse(req.body)
+  const partner = await partnerFacade.updatePartner(id, input, auditMeta(req))
+  if (!partner) {
+    res.status(404).json(buildErrorResponse('PARTNER_NOT_FOUND', `Partner ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: partner, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/partners/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'partner', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await partnerFacade.deletePartner(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('PARTNER_NOT_FOUND', `Partner ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Communities ----------
+
+router.get('/api/v1/communities', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'community', 'read'))) return
+  const query = communityQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await communityFacade.listCommunities({
+    status: query.status,
+    limit: query.limit,
+    offset,
+  })
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
+}))
+
+router.post('/api/v1/communities', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'community', 'write'))) return
+  const input = createCommunitySchema.parse(req.body)
+  const community = await communityFacade.createCommunity(input, auditMeta(req))
+  res.status(201).json({ data: community, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/communities/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'community', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const community = await communityFacade.getCommunity(id)
+  if (!community) {
+    res.status(404).json(buildErrorResponse('COMMUNITY_NOT_FOUND', `Community ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: community, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/communities/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'community', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateCommunitySchema.parse(req.body)
+  const community = await communityFacade.updateCommunity(id, input, auditMeta(req))
+  if (!community) {
+    res.status(404).json(buildErrorResponse('COMMUNITY_NOT_FOUND', `Community ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: community, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/communities/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'community', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await communityFacade.deleteCommunity(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('COMMUNITY_NOT_FOUND', `Community ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Investors ----------
+
+router.get('/api/v1/investors', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'investor', 'read'))) return
+  const query = investorQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await investorFacade.listInvestors({
+    status: query.status,
+    investorType: query.investorType,
+    limit: query.limit,
+    offset,
+  })
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
+}))
+
+router.post('/api/v1/investors', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'investor', 'write'))) return
+  const input = createInvestorSchema.parse(req.body)
+  const investor = await investorFacade.createInvestor(input, auditMeta(req))
+  res.status(201).json({ data: investor, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/investors/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'investor', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const investor = await investorFacade.getInvestor(id)
+  if (!investor) {
+    res.status(404).json(buildErrorResponse('INVESTOR_NOT_FOUND', `Investor ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: investor, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/investors/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'investor', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateInvestorSchema.parse(req.body)
+  const investor = await investorFacade.updateInvestor(id, input, auditMeta(req))
+  if (!investor) {
+    res.status(404).json(buildErrorResponse('INVESTOR_NOT_FOUND', `Investor ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: investor, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/investors/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'investor', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await investorFacade.deleteInvestor(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('INVESTOR_NOT_FOUND', `Investor ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- Use cases ----------
+
+router.get('/api/v1/use-cases', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'use-case', 'read'))) return
+  const query = useCaseQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await useCaseFacade.listUseCases({
+    opportunityId: query.opportunityId,
+    ownerId: query.ownerId,
+    limit: query.limit,
+    offset,
+  })
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
+}))
+
+router.post('/api/v1/use-cases', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'use-case', 'write'))) return
+  const input = createUseCaseSchema.parse(req.body)
+  const useCase = await useCaseFacade.createUseCase(input, auditMeta(req))
+  res.status(201).json({ data: useCase, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/use-cases/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'use-case', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const useCase = await useCaseFacade.getUseCase(id)
+  if (!useCase) {
+    res.status(404).json(buildErrorResponse('USE_CASE_NOT_FOUND', `Use case ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: useCase, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/use-cases/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'use-case', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updateUseCaseSchema.parse(req.body)
+  const useCase = await useCaseFacade.updateUseCase(id, input, auditMeta(req))
+  if (!useCase) {
+    res.status(404).json(buildErrorResponse('USE_CASE_NOT_FOUND', `Use case ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: useCase, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/use-cases/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'use-case', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await useCaseFacade.deleteUseCase(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('USE_CASE_NOT_FOUND', `Use case ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
 // ---------- Analytics ----------
 
 router.get('/api/v1/analytics/pipeline', asyncHandler(async (req, res) => {
@@ -813,4 +1169,132 @@ router.get('/api/v1/audit', asyncHandler(async (req, res) => {
     offset: (query.page - 1) * query.limit,
   })
   res.json({ data: events, meta: buildPaginatedMeta(req.requestId, total, query.limit, (query.page - 1) * query.limit) })
+}))
+
+// ---------- Policy rules ----------
+
+router.get('/api/v1/policy/rules', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'policy', 'read'))) return
+  const query = policyRuleQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await policyRuleFacade.listPolicyRules({
+    resource: query.resource,
+    action: query.action,
+    enabled: query.enabled === 'true' ? true : query.enabled === 'false' ? false : undefined,
+    limit: query.limit,
+    offset,
+  })
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
+}))
+
+router.post('/api/v1/policy/rules', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'policy', 'write'))) return
+  const input = createPolicyRuleSchema.parse(req.body)
+  const rule = await policyRuleFacade.createPolicyRule(input, auditMeta(req))
+  res.status(201).json({ data: rule, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/policy/rules/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'policy', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const rule = await policyRuleFacade.getPolicyRule(id)
+  if (!rule) {
+    res.status(404).json(buildErrorResponse('POLICY_RULE_NOT_FOUND', `Policy rule ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: rule, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.put('/api/v1/policy/rules/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'policy', 'write'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = updatePolicyRuleSchema.parse(req.body)
+  const rule = await policyRuleFacade.updatePolicyRule(id, input, auditMeta(req))
+  if (!rule) {
+    res.status(404).json(buildErrorResponse('POLICY_RULE_NOT_FOUND', `Policy rule ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: rule, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.delete('/api/v1/policy/rules/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'policy', 'delete'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const deleted = await policyRuleFacade.deletePolicyRule(id, auditMeta(req))
+  if (!deleted) {
+    res.status(404).json(buildErrorResponse('POLICY_RULE_NOT_FOUND', `Policy rule ${id} was not found`, req.requestId))
+    return
+  }
+  res.status(204).send()
+}))
+
+// ---------- GO-Gate ----------
+
+router.get('/api/v1/go-gate', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'read'))) return
+  const query = goGateQuerySchema.parse(req.query)
+  const offset = (query.page - 1) * query.limit
+  const { data, total } = await goGateFacade.listRequests({
+    status: query.status,
+    actionType: query.actionType,
+    limit: query.limit,
+    offset,
+  })
+  res.json({ data, meta: buildPaginatedMeta(req.requestId, total, query.limit, offset) })
+}))
+
+router.post('/api/v1/go-gate', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'write'))) return
+  const input = createGoGateRequestSchema.parse(req.body)
+  const request = await goGateFacade.requestExecution({
+    actionType: input.actionType,
+    target: input.target,
+    payload: input.payload,
+    requester: { id: req.actor?.id ?? 'unknown', roles: toPolicyRoles(req.actor?.roles ?? []) },
+    meta: { requestId: req.requestId, source: 'api' },
+  })
+  res.status(201).json({ data: request, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/go-gate/:id', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const request = await goGateFacade.getRequest(id)
+  if (!request) {
+    res.status(404).json(buildErrorResponse('GO_GATE_NOT_FOUND', `Go-Gate request ${id} was not found`, req.requestId))
+    return
+  }
+  res.json({ data: request, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.post('/api/v1/go-gate/:id/approve', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'approve'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = goGateDecisionSchema.parse(req.body)
+  const request = await goGateFacade.approve(id, { id: req.actor?.id ?? 'unknown', roles: toPolicyRoles(req.actor?.roles ?? []) }, {
+    reason: input.reason,
+    meta: { requestId: req.requestId, source: 'api' },
+  })
+  res.json({ data: request, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.post('/api/v1/go-gate/:id/reject', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'approve'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const input = goGateDecisionSchema.parse(req.body)
+  const request = await goGateFacade.reject(id, { id: req.actor?.id ?? 'unknown', roles: toPolicyRoles(req.actor?.roles ?? []) }, {
+    reason: input.reason,
+    meta: { requestId: req.requestId, source: 'api' },
+  })
+  res.json({ data: request, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.post('/api/v1/go-gate/:id/execute', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'execute'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const request = await goGateFacade.execute(id, { id: req.actor?.id ?? 'unknown', roles: toPolicyRoles(req.actor?.roles ?? []) }, {
+    requestId: req.requestId,
+    source: 'api',
+  })
+  res.json({ data: request, meta: buildSuccessMeta(req.requestId) })
 }))

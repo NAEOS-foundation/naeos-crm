@@ -4,15 +4,22 @@ import type {
   CampaignAnalyticsSummary,
   CampaignStep,
   Company,
+  Community,
   Contact,
+  Contributor,
   FollowUp,
   FollowUpAnalyticsSummary,
+  GoGateRequest,
+  Investor,
   Lead,
   Opportunity,
+  Partner,
   PipelineAnalyticsSummary,
   PipelineStage,
+  PolicyRule,
   Task,
   User,
+  UseCase,
   DashboardSummary,
 } from '@naeos-crm/domain'
 import type { AuditService, AuditEvent } from '@naeos-crm/audit'
@@ -22,18 +29,25 @@ import type {
   AuditReadPort,
   CampaignReadPort,
   CampaignStepReadPort,
+  CommunityReadPort,
   CompanyReadPort,
   ContactReadPort,
+  ContributorReadPort,
   DashboardReadPort,
   FollowUpReadPort,
+  InvestorReadPort,
   LeadReadPort,
   OpportunityReadPort,
   PageQuery,
+  PartnerReadPort,
   PipelineAnalyticsReadPort,
   PipelineStageReadPort,
+  PolicyRuleReadPort,
   TaskReadPort,
+  UseCaseReadPort,
   UserReadPort,
 } from './domain-interfaces'
+import { GoGateService } from './gate'
 import { forbidden, HttpError } from './errors'
 
 interface AuditMetadata {
@@ -981,6 +995,395 @@ export class FollowUpFacade {
   }
 }
 
+export class ContributorFacade {
+  constructor(
+    private readonly contributorReadPort: ContributorReadPort,
+    private readonly audit: AuditService,
+  ) {}
+
+  private async assertWriteAccess(actor: AuditMetadata['actor']) {
+    if (!actor) throw forbidden('No authenticated actor')
+    if (isPrivileged(actor)) return
+    throw forbidden('Only admins and managers can manage ecosystem data')
+  }
+
+  async getContributor(id: string) {
+    return this.contributorReadPort.findById(id)
+  }
+
+  async listContributors(params?: {
+    status?: Contributor['status']
+    role?: Contributor['role']
+    communityId?: string
+  } & PageQuery) {
+    return this.contributorReadPort.list(params)
+  }
+
+  async createContributor(input: Omit<Contributor, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const contributor = await this.contributorReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'contributor.created',
+      entityType: 'contributor',
+      entityId: contributor.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: contributor as unknown as Record<string, unknown>,
+    })
+    return contributor
+  }
+
+  async updateContributor(id: string, input: Partial<Contributor>, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const previous = await this.contributorReadPort.findById(id)
+    const contributor = await this.contributorReadPort.update(id, input)
+
+    if (!contributor) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'contributor.updated',
+      entityType: 'contributor',
+      entityId: contributor.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: contributor as unknown as Record<string, unknown>,
+    })
+    return contributor
+  }
+
+  async deleteContributor(id: string, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const previous = await this.contributorReadPort.findById(id)
+    const deleted = await this.contributorReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'contributor.deleted',
+        entityType: 'contributor',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+    return deleted
+  }
+}
+
+export class PartnerFacade {
+  constructor(
+    private readonly partnerReadPort: PartnerReadPort,
+    private readonly audit: AuditService,
+  ) {}
+
+  private async assertWriteAccess(actor: AuditMetadata['actor']) {
+    if (!actor) throw forbidden('No authenticated actor')
+    if (isPrivileged(actor)) return
+    throw forbidden('Only admins and managers can manage ecosystem data')
+  }
+
+  async getPartner(id: string) {
+    return this.partnerReadPort.findById(id)
+  }
+
+  async listPartners(params?: {
+    status?: Partner['status']
+    partnerType?: Partner['partnerType']
+  } & PageQuery) {
+    return this.partnerReadPort.list(params)
+  }
+
+  async createPartner(input: Omit<Partner, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const partner = await this.partnerReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'partner.created',
+      entityType: 'partner',
+      entityId: partner.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: partner as unknown as Record<string, unknown>,
+    })
+    return partner
+  }
+
+  async updatePartner(id: string, input: Partial<Partner>, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const previous = await this.partnerReadPort.findById(id)
+    const partner = await this.partnerReadPort.update(id, input)
+
+    if (!partner) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'partner.updated',
+      entityType: 'partner',
+      entityId: partner.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: partner as unknown as Record<string, unknown>,
+    })
+    return partner
+  }
+
+  async deletePartner(id: string, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const previous = await this.partnerReadPort.findById(id)
+    const deleted = await this.partnerReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'partner.deleted',
+        entityType: 'partner',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+    return deleted
+  }
+}
+
+export class CommunityFacade {
+  constructor(
+    private readonly communityReadPort: CommunityReadPort,
+    private readonly audit: AuditService,
+  ) {}
+
+  private async assertWriteAccess(actor: AuditMetadata['actor']) {
+    if (!actor) throw forbidden('No authenticated actor')
+    if (isPrivileged(actor)) return
+    throw forbidden('Only admins and managers can manage ecosystem data')
+  }
+
+  async getCommunity(id: string) {
+    return this.communityReadPort.findById(id)
+  }
+
+  async listCommunities(params?: { status?: Community['status'] } & PageQuery) {
+    return this.communityReadPort.list(params)
+  }
+
+  async createCommunity(input: Omit<Community, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const community = await this.communityReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'community.created',
+      entityType: 'community',
+      entityId: community.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: community as unknown as Record<string, unknown>,
+    })
+    return community
+  }
+
+  async updateCommunity(id: string, input: Partial<Community>, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const previous = await this.communityReadPort.findById(id)
+    const community = await this.communityReadPort.update(id, input)
+
+    if (!community) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'community.updated',
+      entityType: 'community',
+      entityId: community.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: community as unknown as Record<string, unknown>,
+    })
+    return community
+  }
+
+  async deleteCommunity(id: string, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const previous = await this.communityReadPort.findById(id)
+    const deleted = await this.communityReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'community.deleted',
+        entityType: 'community',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+    return deleted
+  }
+}
+
+export class InvestorFacade {
+  constructor(
+    private readonly investorReadPort: InvestorReadPort,
+    private readonly audit: AuditService,
+  ) {}
+
+  private async assertWriteAccess(actor: AuditMetadata['actor']) {
+    if (!actor) throw forbidden('No authenticated actor')
+    if (isPrivileged(actor)) return
+    throw forbidden('Only admins and managers can manage ecosystem data')
+  }
+
+  async getInvestor(id: string) {
+    return this.investorReadPort.findById(id)
+  }
+
+  async listInvestors(params?: {
+    status?: Investor['status']
+    investorType?: Investor['investorType']
+  } & PageQuery) {
+    return this.investorReadPort.list(params)
+  }
+
+  async createInvestor(input: Omit<Investor, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const investor = await this.investorReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'investor.created',
+      entityType: 'investor',
+      entityId: investor.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: investor as unknown as Record<string, unknown>,
+    })
+    return investor
+  }
+
+  async updateInvestor(id: string, input: Partial<Investor>, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const previous = await this.investorReadPort.findById(id)
+    const investor = await this.investorReadPort.update(id, input)
+
+    if (!investor) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'investor.updated',
+      entityType: 'investor',
+      entityId: investor.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: investor as unknown as Record<string, unknown>,
+    })
+    return investor
+  }
+
+  async deleteInvestor(id: string, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const previous = await this.investorReadPort.findById(id)
+    const deleted = await this.investorReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'investor.deleted',
+        entityType: 'investor',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+    return deleted
+  }
+}
+
+export class UseCaseFacade {
+  constructor(
+    private readonly useCaseReadPort: UseCaseReadPort,
+    private readonly audit: AuditService,
+  ) {}
+
+  private async assertWriteAccess(actor: AuditMetadata['actor']) {
+    if (!actor) throw forbidden('No authenticated actor')
+    if (isPrivileged(actor)) return
+    throw forbidden('Only admins and managers can manage use cases')
+  }
+
+  async getUseCase(id: string) {
+    return this.useCaseReadPort.findById(id)
+  }
+
+  async listUseCases(params?: { opportunityId?: string; ownerId?: string } & PageQuery) {
+    return this.useCaseReadPort.list(params)
+  }
+
+  async listByOpportunity(opportunityId: string, params?: PageQuery) {
+    return this.useCaseReadPort.listByOpportunity(opportunityId, params)
+  }
+
+  async createUseCase(input: Omit<UseCase, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const useCase = await this.useCaseReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'use-case.created',
+      entityType: 'use-case',
+      entityId: useCase.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: useCase as unknown as Record<string, unknown>,
+    })
+    return useCase
+  }
+
+  async updateUseCase(id: string, input: Partial<UseCase>, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const previous = await this.useCaseReadPort.findById(id)
+    const useCase = await this.useCaseReadPort.update(id, input)
+
+    if (!useCase) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'use-case.updated',
+      entityType: 'use-case',
+      entityId: useCase.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: useCase as unknown as Record<string, unknown>,
+    })
+    return useCase
+  }
+
+  async deleteUseCase(id: string, auditMeta: AuditMetadata) {
+    await this.assertWriteAccess(auditMeta.actor)
+    const previous = await this.useCaseReadPort.findById(id)
+    const deleted = await this.useCaseReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'use-case.deleted',
+        entityType: 'use-case',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+    return deleted
+  }
+}
+
 export class PipelineAnalyticsFacade {
   constructor(private readonly analyticsReadPort: PipelineAnalyticsReadPort) {}
 
@@ -1009,5 +1412,108 @@ export class AuditFacade {
     offset: number
   }): Promise<{ events: AuditEvent[]; total: number }> {
     return this.auditReadPort.list(params)
+  }
+}
+
+export class PolicyRuleFacade {
+  constructor(
+    private readonly policyRuleReadPort: PolicyRuleReadPort,
+    private readonly audit: AuditService,
+  ) {}
+
+  private async assertAdmin(actor: AuditMetadata['actor']) {
+    if (!actor) throw forbidden('No authenticated actor')
+    const isAdmin = actor.roles.includes('admin')
+    if (!isAdmin) throw forbidden('Only admins can manage policy rules')
+  }
+
+  async getPolicyRule(id: string) {
+    return this.policyRuleReadPort.findById(id)
+  }
+
+  async listPolicyRules(params?: { resource?: string; action?: string; enabled?: boolean } & PageQuery) {
+    return this.policyRuleReadPort.list(params)
+  }
+
+  async createPolicyRule(input: Omit<PolicyRule, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    await this.assertAdmin(auditMeta.actor)
+    const rule = await this.policyRuleReadPort.create(input)
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'policy-rule.created',
+      entityType: 'policy-rule',
+      entityId: rule.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      newState: rule as unknown as Record<string, unknown>,
+    })
+    return rule
+  }
+
+  async updatePolicyRule(id: string, input: Partial<PolicyRule>, auditMeta: AuditMetadata) {
+    await this.assertAdmin(auditMeta.actor)
+    const previous = await this.policyRuleReadPort.findById(id)
+    const rule = await this.policyRuleReadPort.update(id, input)
+
+    if (!rule) return null
+
+    await auditSafely(this.audit, {
+      actorId: auditMeta.actorId,
+      action: 'policy-rule.updated',
+      entityType: 'policy-rule',
+      entityId: rule.id,
+      requestId: auditMeta.requestId,
+      result: 'SUCCESS',
+      previousState: (previous as unknown as Record<string, unknown>) ?? undefined,
+      newState: rule as unknown as Record<string, unknown>,
+    })
+    return rule
+  }
+
+  async deletePolicyRule(id: string, auditMeta: AuditMetadata) {
+    await this.assertAdmin(auditMeta.actor)
+    const previous = await this.policyRuleReadPort.findById(id)
+    const deleted = await this.policyRuleReadPort.delete(id)
+
+    if (deleted && previous) {
+      await auditSafely(this.audit, {
+        actorId: auditMeta.actorId,
+        action: 'policy-rule.deleted',
+        entityType: 'policy-rule',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        previousState: previous as unknown as Record<string, unknown>,
+      })
+    }
+    return deleted
+  }
+}
+
+export class GoGateFacade {
+  constructor(private readonly gate: GoGateService) {}
+
+  async getRequest(id: string) {
+    return this.gate.getRequest(id)
+  }
+
+  async listRequests(params?: { status?: GoGateRequest['status']; actionType?: GoGateRequest['actionType'] } & PageQuery) {
+    return this.gate.listRequests(params)
+  }
+
+  async requestExecution(input: Parameters<GoGateService['requestExecution']>[0]) {
+    return this.gate.requestExecution(input)
+  }
+
+  async approve(id: string, approver: Parameters<GoGateService['approve']>[1], input: Parameters<GoGateService['approve']>[2]) {
+    return this.gate.approve(id, approver, input)
+  }
+
+  async reject(id: string, approver: Parameters<GoGateService['reject']>[1], input: Parameters<GoGateService['reject']>[2]) {
+    return this.gate.reject(id, approver, input)
+  }
+
+  async execute(id: string, executor: Parameters<GoGateService['execute']>[1], meta: Parameters<GoGateService['execute']>[2]) {
+    return this.gate.execute(id, executor, meta)
   }
 }

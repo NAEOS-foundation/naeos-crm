@@ -5,7 +5,9 @@
 - Phase 0 (architecture foundation) is delivered via `docs/` (architecture, domain model, security model, audit model, API surface, ADRs).
 - Phase 1 (foundation) is delivered and open as PR #1: full-stack monorepo with auth, RBAC, CRUD + audit, dashboard, and a React web app.
 - Phase 2 (pipeline and campaigns) is complete: opportunities, pipeline stages, campaigns and sequences, follow-ups, analytics, RBAC, audit, and web UI.
-- Phases 3–6 remain future work per the ordering below.
+- Phase 3 (ecosystem) is complete: contributors, partners, communities, investors, and NAEOS use cases with RBAC, audit, seed data, and web UI.
+- Phase 4 (governance) is complete: versioned policy rules, GO-Gate external action gate with approval lifecycle, execution verification, policy-aware `requireAuth`, advanced audit, seed data, and web UI.
+- Phases 5–6 remain future work per the ordering below.
 
 ## Phase 0 — Architecture foundation
 
@@ -75,6 +77,18 @@ The pipeline and campaign layer evolve from the same domain boundaries without i
 
 ## Phase 3 — Ecosystem
 
+### Status
+
+Complete. Phase 3 extends the model into ecosystem relationship tracking beyond commercial relationships (see `docs/adr/ADR-007-ecosystem-use-cases.md`):
+
+- Prisma models and migration for communities, contributors, partners, investors, and use cases, plus four shared enums (`EcosystemStatus`, `ContributorRole`, `PartnerType`, `InvestorType`).
+- Contributors have an optional single affiliation to a community (`onDelete: SetNull`); use cases are attached to an opportunity (`onDelete: Cascade`) with an optional monetary value.
+- Repository ports, facades, validation, RBAC (`contributor`, `partner`, `community`, `investor`, `use-case`), and REST routes in `@naeos-crm/api`.
+- Write access to ecosystem records is limited to admins and managers; all roles can read them.
+- React web pages for Contributors, Partners, Communities, Investors, and Use Cases with role-aware navigation.
+- Seed data for a community, contributors, partners, investors, and a use case tied to the first seeded opportunity.
+- Tests covering service-layer facades, authorization policy, and API integration (Phase 3 suites).
+
 ### Scope
 
 - contributors
@@ -85,9 +99,24 @@ The pipeline and campaign layer evolve from the same domain boundaries without i
 
 ### Notes
 
-This phase expands the model beyond commercial relationship management into ecosystem relationship tracking.
+This phase expands the model beyond commercial relationship management into ecosystem relationship tracking. Contributor-to-community affiliation is modeled as a single optional link rather than a many-to-many relation; this is a deliberate simplification that can be promoted to M2M in a future phase without schema churn on the foreign key side.
 
 ## Phase 4 — Governance
+
+### Status
+
+Complete. Phase 4 introduces the policy and external action control plane for consequential operations (see `docs/adr/ADR-008-go-gate-policy-rules.md`):
+
+- Prisma models and migration for `PolicyRule` and `GoGateRequest`, including `GoGateStatus` and `GoGateActionType` enums (see `docs/adr/ADR-005-policy-integration-boundary.md` for the original boundary).
+- Versioned policy rules with `resource`/`action`/`role` wildcard support, `priority`, `ALLOW`/`DENY` effects (fail closed on no match), and evaluation that breaks ties in favor of `DENY`. `role` is a text column so `'*'` roles can be persisted.
+- GO-Gate lifecycle `READY → WAITING_FOR_GO → APPROVED → EXECUTING → EXECUTED | FAILED` plus `REJECTED` and `EXPIRED`, with a 15-minute approval window. Requests denied by policy are recorded as `REJECTED` with the decision reason and policy version.
+- Execution verification: after the external adapter returns, the request is marked `EXECUTED`/`verified` or `FAILED`. Adapters (`EmailAdapter`, `GitHubAdapter`) are simulated via `ExternalActionPort` and swappable for real providers.
+- Policy-aware `requireAuth`: DB policy rules are evaluated first and are authoritative when they match; otherwise authorization falls back to the static `UserRole` matrix in `@naeos-crm/auth`. `POLICY_VERSION` bumped to `2026.09.17`.
+- RBAC additions (`go-gate:read/write/approve/execute`, `policy:read/write/delete`) and advanced audit families `go-gate.*` and `policy-rule.*` recorded on every transition.
+- REST routes for `/api/v1/go-gate` (list, create, get, approve, reject, execute) and `/api/v1/policy/rules` (admin CRUD).
+- React web pages for GO-Gate and Policy with role-aware navigation.
+- Seed data for default policy rules covering `go-gate` and `policy` resources.
+- Tests covering the policy adapter (priority, DENY tie-break, fail-closed), service-layer facades, authorization policy, and API integration (Phase 4 suites); 67 API tests total.
 
 ### Scope
 
@@ -99,7 +128,7 @@ This phase expands the model beyond commercial relationship management into ecos
 
 ### Notes
 
-This phase introduces the policy and external action control plane for consequential operations.
+Policy rules are fail-closed: a consequential external action must be explicitly allowed by a rule. The `READY` state is reserved for future pre-flight flows; requests are currently created directly as `WAITING_FOR_GO` or `REJECTED`. The runtime evaluation queries the policy store on each authorized request; caching is deferred.
 
 ## Phase 5 — AI
 

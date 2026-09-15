@@ -5,10 +5,17 @@ import { vi } from 'vitest'
 
 import {
   ActivityFacade,
+  CommunityFacade,
   CompanyFacade,
   ContactFacade,
+  ContributorFacade,
+  GoGateFacade,
+  InvestorFacade,
   LeadFacade,
+  PartnerFacade,
+  PolicyRuleFacade,
   TaskFacade,
+  UseCaseFacade,
   UserFacade,
   PipelineStageFacade,
   OpportunityFacade,
@@ -19,10 +26,17 @@ import {
 } from './service-layer'
 import type {
   ActivityReadPort,
+  CommunityReadPort,
   CompanyReadPort,
   ContactReadPort,
+  ContributorReadPort,
+  GoGateRequestReadPort,
+  InvestorReadPort,
   LeadReadPort,
+  PartnerReadPort,
+  PolicyRuleReadPort,
   TaskReadPort,
+  UseCaseReadPort,
   UserReadPort,
   PipelineStageReadPort,
   OpportunityReadPort,
@@ -32,14 +46,22 @@ import type {
   PipelineAnalyticsReadPort,
 } from './domain-interfaces'
 import type {
+  Community,
   Company,
+  Contributor,
+  GoGateRequest,
+  Investor,
+  Partner,
   PipelineStage,
+  PolicyRule,
   Opportunity,
   Campaign,
   CampaignStep,
   FollowUp,
+  UseCase,
   PipelineAnalyticsSummary,
 } from '@naeos-crm/domain'
+import { GoGateService } from './gate'
 
 function noopSink(): AuditSink {
   return { append: vi.fn().mockResolvedValue(undefined) }
@@ -559,6 +581,175 @@ function createFollowUpPort(): FollowUpReadPort & { storage: FollowUp[] } {
   }
 }
 
+function createContributorPort(): ContributorReadPort & { storage: Contributor[] } {
+  const storage: Contributor[] = []
+  return {
+    storage,
+    async findById(id) {
+      return storage.find((c) => c.id === id) ?? null
+    },
+    async list(params) {
+      let result = [...storage]
+      if (params?.status) result = result.filter((c) => c.status === params.status)
+      if (params?.role) result = result.filter((c) => c.role === params.role)
+      if (params?.communityId) result = result.filter((c) => c.communityId === params.communityId)
+      return { data: result, total: result.length }
+    },
+    async create(input) {
+      const contributor: Contributor = { ...input, id: `contributor-${storage.length + 1}`, createdAt: new Date(), updatedAt: new Date() }
+      storage.push(contributor)
+      return contributor
+    },
+    async update(id, input) {
+      const index = storage.findIndex((c) => c.id === id)
+      if (index === -1) return null
+      storage[index] = { ...storage[index], ...input, updatedAt: new Date() }
+      return storage[index]
+    },
+    async delete(id) {
+      const index = storage.findIndex((c) => c.id === id)
+      if (index === -1) return false
+      storage.splice(index, 1)
+      return true
+    },
+  }
+}
+
+function createPartnerPort(): PartnerReadPort & { storage: Partner[] } {
+  const storage: Partner[] = []
+  return {
+    storage,
+    async findById(id) {
+      return storage.find((p) => p.id === id) ?? null
+    },
+    async list(params) {
+      let result = [...storage]
+      if (params?.status) result = result.filter((p) => p.status === params.status)
+      if (params?.partnerType) result = result.filter((p) => p.partnerType === params.partnerType)
+      return { data: result, total: result.length }
+    },
+    async create(input) {
+      const partner: Partner = { ...input, id: `partner-${storage.length + 1}`, createdAt: new Date(), updatedAt: new Date() }
+      storage.push(partner)
+      return partner
+    },
+    async update(id, input) {
+      const index = storage.findIndex((p) => p.id === id)
+      if (index === -1) return null
+      storage[index] = { ...storage[index], ...input, updatedAt: new Date() }
+      return storage[index]
+    },
+    async delete(id) {
+      const index = storage.findIndex((p) => p.id === id)
+      if (index === -1) return false
+      storage.splice(index, 1)
+      return true
+    },
+  }
+}
+
+function createCommunityPort(): CommunityReadPort & { storage: Community[] } {
+  const storage: Community[] = []
+  return {
+    storage,
+    async findById(id) {
+      return storage.find((c) => c.id === id) ?? null
+    },
+    async list(params) {
+      let result = [...storage]
+      if (params?.status) result = result.filter((c) => c.status === params.status)
+      return { data: result, total: result.length }
+    },
+    async create(input) {
+      const community: Community = { ...input, id: `community-${storage.length + 1}`, createdAt: new Date(), updatedAt: new Date() }
+      storage.push(community)
+      return community
+    },
+    async update(id, input) {
+      const index = storage.findIndex((c) => c.id === id)
+      if (index === -1) return null
+      storage[index] = { ...storage[index], ...input, updatedAt: new Date() }
+      return storage[index]
+    },
+    async delete(id) {
+      const index = storage.findIndex((c) => c.id === id)
+      if (index === -1) return false
+      storage.splice(index, 1)
+      return true
+    },
+  }
+}
+
+function createInvestorPort(): InvestorReadPort & { storage: Investor[] } {
+  const storage: Investor[] = []
+  return {
+    storage,
+    async findById(id) {
+      return storage.find((i) => i.id === id) ?? null
+    },
+    async list(params) {
+      let result = [...storage]
+      if (params?.status) result = result.filter((i) => i.status === params.status)
+      if (params?.investorType) result = result.filter((i) => i.investorType === params.investorType)
+      return { data: result, total: result.length }
+    },
+    async create(input) {
+      const investor: Investor = { ...input, id: `investor-${storage.length + 1}`, createdAt: new Date(), updatedAt: new Date() }
+      storage.push(investor)
+      return investor
+    },
+    async update(id, input) {
+      const index = storage.findIndex((i) => i.id === id)
+      if (index === -1) return null
+      storage[index] = { ...storage[index], ...input, updatedAt: new Date() }
+      return storage[index]
+    },
+    async delete(id) {
+      const index = storage.findIndex((i) => i.id === id)
+      if (index === -1) return false
+      storage.splice(index, 1)
+      return true
+    },
+  }
+}
+
+function createUseCasePort(): UseCaseReadPort & { storage: UseCase[] } {
+  const storage: UseCase[] = []
+  return {
+    storage,
+    async findById(id) {
+      return storage.find((u) => u.id === id) ?? null
+    },
+    async list(params) {
+      let result = [...storage]
+      if (params?.opportunityId) result = result.filter((u) => u.opportunityId === params.opportunityId)
+      if (params?.ownerId) result = result.filter((u) => u.ownerId === params.ownerId)
+      return { data: result, total: result.length }
+    },
+    async listByOpportunity(opportunityId) {
+      const result = storage.filter((u) => u.opportunityId === opportunityId)
+      return { data: result, total: result.length }
+    },
+    async create(input) {
+      const useCase: UseCase = { ...input, id: `usecase-${storage.length + 1}`, createdAt: new Date(), updatedAt: new Date() }
+      storage.push(useCase)
+      return useCase
+    },
+    async update(id, input) {
+      const index = storage.findIndex((u) => u.id === id)
+      if (index === -1) return null
+      storage[index] = { ...storage[index], ...input, updatedAt: new Date() }
+      return storage[index]
+    },
+    async delete(id) {
+      const index = storage.findIndex((u) => u.id === id)
+      if (index === -1) return false
+      storage.splice(index, 1)
+      return true
+    },
+  }
+}
+
 function createAnalyticsPort(summary: PipelineAnalyticsSummary): PipelineAnalyticsReadPort {
   return {
     async getPipelineAnalytics() {
@@ -794,5 +985,262 @@ describe('Phase 2 pipeline and campaign write flow', () => {
 
     const followUps = await facade.getFollowUpAnalytics()
     expect(followUps.overdueCount).toBe(0)
+  })
+})
+
+describe('Phase 3 ecosystem and use cases write flow', () => {
+  const adminMeta = {
+    actorId: 'user-admin',
+    requestId: 'req-p3-1',
+    actor: { id: 'user-admin', roles: ['admin'] as string[] },
+  }
+  const memberMeta = {
+    actorId: 'user-member',
+    requestId: 'req-p3-2',
+    actor: { id: 'user-member', roles: ['member'] as string[] },
+  }
+
+  it('creates a community and contributor, linking the contributor to the community', async () => {
+    const audit = createAuditService()
+    const communityStore = createCommunityPort()
+    const communityFacade = new CommunityFacade(communityStore, audit)
+    const community = await communityFacade.createCommunity(
+      { name: 'Builders Guild', status: 'ACTIVE' },
+      adminMeta,
+    )
+    expect(community.id).toBe('community-1')
+
+    const contributorStore = createContributorPort()
+    const contributorFacade = new ContributorFacade(contributorStore, audit)
+    const contributor = await contributorFacade.createContributor(
+      { name: 'Rina', role: 'MAINTAINER', status: 'ACTIVE', communityId: community.id },
+      adminMeta,
+    )
+    expect(contributor.communityId).toBe(community.id)
+
+    const listed = await contributorFacade.listContributors({ communityId: community.id })
+    expect(listed.total).toBe(1)
+  })
+
+  it('creates a partner and an investor', async () => {
+    const audit = createAuditService()
+    const partnerStore = createPartnerPort()
+    const partnerFacade = new PartnerFacade(partnerStore, audit)
+    const partner = await partnerFacade.createPartner(
+      { name: 'DigitalOcean', partnerType: 'TECHNOLOGY', status: 'ACTIVE' },
+      adminMeta,
+    )
+    expect(partner.partnerType).toBe('TECHNOLOGY')
+
+    const investorStore = createInvestorPort()
+    const investorFacade = new InvestorFacade(investorStore, audit)
+    const investor = await investorFacade.createInvestor(
+      { name: 'East Ventures', investorType: 'VENTURE', status: 'ACTIVE' },
+      adminMeta,
+    )
+    expect(investor.investorType).toBe('VENTURE')
+  })
+
+  it('creates a use case attached to an opportunity and updates it', async () => {
+    const audit = createAuditService()
+    const store = createUseCasePort()
+    const facade = new UseCaseFacade(store, audit)
+    const useCase = await facade.createUseCase(
+      { opportunityId: 'opportunity-1', title: 'SDK licensing dashboard', value: 12000 },
+      adminMeta,
+    )
+    expect(useCase.opportunityId).toBe('opportunity-1')
+
+    const updated = await facade.updateUseCase(useCase.id, { value: 15000 }, adminMeta)
+    expect(updated?.value).toBe(15000)
+
+    const listed = await facade.listByOpportunity('opportunity-1')
+    expect(listed.total).toBe(1)
+  })
+
+  it('blocks members from writing ecosystem records', async () => {
+    const audit = createAuditService()
+    const store = createPartnerPort()
+    const facade = new PartnerFacade(store, audit)
+    await expect(
+      facade.createPartner({ name: 'Blocked', partnerType: 'CHANNEL', status: 'ACTIVE' }, memberMeta),
+    ).rejects.toThrow(/admin|manager/i)
+  })
+})
+
+function createPolicyRulePort(): PolicyRuleReadPort & { storage: PolicyRule[] } {
+  const storage: PolicyRule[] = []
+  return {
+    storage,
+    async findById(id) {
+      return storage.find((r) => r.id === id) ?? null
+    },
+    async list() {
+      return { data: [...storage], total: storage.length }
+    },
+    async findForEvaluation(resource, action, roles) {
+      const roleList = roles as unknown as string[]
+      return storage.filter(
+        (r) =>
+          r.enabled &&
+          (r.resource === resource || r.resource === '*') &&
+          (r.action === action || r.action === '*') &&
+          (roleList.includes(r.role) || r.role === '*'),
+      )
+    },
+    async create(input) {
+      const rule: PolicyRule = {
+        ...input,
+        id: `rule-${storage.length + 1}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+      storage.push(rule)
+      return rule
+    },
+    async update(id, input) {
+      const index = storage.findIndex((r) => r.id === id)
+      if (index === -1) return null
+      storage[index] = { ...storage[index], ...input, updatedAt: new Date() }
+      return storage[index]
+    },
+    async delete(id) {
+      const index = storage.findIndex((r) => r.id === id)
+      if (index === -1) return false
+      storage.splice(index, 1)
+      return true
+    },
+  }
+}
+
+function createGoGatePort(): GoGateRequestReadPort & { storage: GoGateRequest[] } {
+  const storage: GoGateRequest[] = []
+  return {
+    storage,
+    async findById(id) {
+      return storage.find((g) => g.id === id) ?? null
+    },
+    async list() {
+      return { data: [...storage], total: storage.length }
+    },
+    async create(input) {
+      const request: GoGateRequest = {
+        ...input,
+        id: `gate-${storage.length + 1}`,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+      storage.push(request)
+      return request
+    },
+    async update(id, input) {
+      const index = storage.findIndex((g) => g.id === id)
+      if (index === -1) return null
+      storage[index] = { ...storage[index], ...input, updatedAt: new Date() }
+      return storage[index]
+    },
+  }
+}
+
+describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
+  const adminMeta = {
+    actorId: 'user-admin',
+    requestId: 'req-p4-1',
+    actor: { id: 'user-admin', roles: ['admin'] as string[] },
+  }
+  const memberMeta = {
+    actorId: 'user-member',
+    requestId: 'req-p4-2',
+    actor: { id: 'user-member', roles: ['member'] as string[] },
+  }
+
+  function createGateFacade(options: { allow: boolean }) {
+    const requests = createGoGatePort()
+    const policy = {
+      evaluate: vi.fn().mockResolvedValue({
+        allow: options.allow,
+        policyVersion: '2026.09.17',
+        reason: options.allow ? 'policy-rule:allow' : 'policy-rule:deny',
+      }),
+    }
+    const actions = {
+      SEND_EMAIL: { execute: vi.fn().mockResolvedValue({ ok: true, providerResponse: { provider: 'email', payload: {} } }) },
+    }
+    const gate = new GoGateService(requests, policy as any, actions, createAuditService())
+    return { facade: new GoGateFacade(gate), requests }
+  }
+
+  it('creates and manages policy rules with audit events, admin only', async () => {
+    const audit = createAuditService()
+    const store = createPolicyRulePort()
+    const facade = new PolicyRuleFacade(store, audit)
+
+    const rule = await facade.createPolicyRule(
+      { resource: 'go-gate', action: 'SEND_EMAIL', role: 'MANAGER', effect: 'ALLOW', priority: 0, enabled: true, policyVersion: '2026.09.17' },
+      adminMeta,
+    )
+    expect(rule.id).toBeTruthy()
+
+    const updated = await facade.updatePolicyRule(rule.id, { enabled: false }, adminMeta)
+    expect(updated?.enabled).toBe(false)
+
+    const deleted = await facade.deletePolicyRule(rule.id, adminMeta)
+    expect(deleted).toBe(true)
+
+    await expect(
+      facade.createPolicyRule(
+        { resource: 'go-gate', action: 'SEND_EMAIL', role: 'MEMBER', effect: 'DENY', priority: 0, enabled: true, policyVersion: '2026.09.17' },
+        memberMeta,
+      ),
+    ).rejects.toThrow(/admin/i)
+  })
+
+  it('routes allowed GO-Gate requests to WAITING_FOR_GO, then approves and executes', async () => {
+    const { facade } = createGateFacade({ allow: true })
+
+    const request = await facade.requestExecution({
+      actionType: 'SEND_EMAIL',
+      target: 'prospect@naeos.local',
+      requester: { id: 'user-admin', roles: ['ADMIN'] },
+      meta: { requestId: 'req-1', source: 'test' },
+    })
+    expect(request.status).toBe('WAITING_FOR_GO')
+
+    const approved = await facade.approve(request.id, { id: 'user-admin', roles: ['ADMIN'] }, { meta: { requestId: 'req-2' } })
+    expect(approved.status).toBe('APPROVED')
+    expect(approved.expiresAt).toBeTruthy()
+    expect(approved.approvedBy).toBe('user-admin')
+
+    const executed = await facade.execute(approved.id, { id: 'user-admin', roles: ['ADMIN'] }, { requestId: 'req-3' })
+    expect(executed.status).toBe('EXECUTED')
+    expect(executed.result).toBe('verified')
+  })
+
+  it('rejects GO-Gate requests denied by policy and blocks out-of-sequence transitions', async () => {
+    const { facade, requests } = createGateFacade({ allow: false })
+
+    const request = await facade.requestExecution({
+      actionType: 'SEND_EMAIL',
+      target: 'prospect@naeos.local',
+      requester: { id: 'user-member', roles: ['MEMBER'] },
+      meta: { requestId: 'req-4' },
+    })
+    expect(request.status).toBe('REJECTED')
+
+    await expect(
+      facade.approve(request.id, { id: 'user-admin', roles: ['ADMIN'] }, { meta: { requestId: 'req-5' } }),
+    ).rejects.toThrow(/status/)
+
+    const pending = await requests.create({
+      actionType: 'SEND_EMAIL',
+      target: 't@t.local',
+      status: 'WAITING_FOR_GO',
+      requestedBy: 'user-admin',
+    })
+    const executed = await facade.approve(pending.id, { id: 'user-admin', roles: ['ADMIN'] }, { meta: { requestId: 'req-6' } })
+    expect(executed.status).toBe('APPROVED')
+    await expect(
+      facade.approve(executed.id, { id: 'user-admin', roles: ['ADMIN'] }, { meta: { requestId: 'req-7' } }),
+    ).rejects.toThrow(/status/)
   })
 })

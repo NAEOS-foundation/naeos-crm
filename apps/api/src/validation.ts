@@ -178,3 +178,122 @@ export const followUpQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
 })
+
+export const createContributorSchema = z.object({
+  name: z.string().min(1),
+  role: z.enum(['DEVELOPER', 'DESIGNER', 'REVIEWER', 'MAINTAINER', 'ADVISOR']),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).default('ACTIVE'),
+  communityId: z.string().optional(),
+  ownerId: z.string().optional(),
+})
+
+export const updateContributorSchema = createContributorSchema.partial().strict()
+
+export const contributorQuerySchema = z.object({
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
+  role: z.enum(['DEVELOPER', 'DESIGNER', 'REVIEWER', 'MAINTAINER', 'ADVISOR']).optional(),
+  communityId: z.string().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const createPartnerSchema = z.object({
+  name: z.string().min(1),
+  partnerType: z.enum(['TECHNOLOGY', 'INTEGRATION', 'STRATEGIC', 'CHANNEL', 'RESELLER']),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).default('ACTIVE'),
+  ownerId: z.string().optional(),
+})
+
+export const updatePartnerSchema = createPartnerSchema.partial().strict()
+
+export const partnerQuerySchema = z.object({
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
+  partnerType: z.enum(['TECHNOLOGY', 'INTEGRATION', 'STRATEGIC', 'CHANNEL', 'RESELLER']).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const createCommunitySchema = z.object({
+  name: z.string().min(1),
+  purpose: z.string().optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).default('ACTIVE'),
+  ownerId: z.string().optional(),
+})
+
+export const updateCommunitySchema = createCommunitySchema.partial().strict()
+
+export const communityQuerySchema = z.object({
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const createInvestorSchema = z.object({
+  name: z.string().min(1),
+  investorType: z.enum(['ANGEL', 'SEED', 'VENTURE', 'STRATEGIC', 'OTHER']),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).default('ACTIVE'),
+  ownerId: z.string().optional(),
+})
+
+export const updateInvestorSchema = createInvestorSchema.partial().strict()
+
+export const investorQuerySchema = z.object({
+  status: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED']).optional(),
+  investorType: z.enum(['ANGEL', 'SEED', 'VENTURE', 'STRATEGIC', 'OTHER']).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const createUseCaseSchema = z.object({
+  opportunityId: z.string().min(1),
+  title: z.string().min(1),
+  summary: z.string().optional(),
+  value: z.number().min(0).optional(),
+  ownerId: z.string().optional(),
+})
+
+export const updateUseCaseSchema = createUseCaseSchema.partial().strict()
+
+export const useCaseQuerySchema = z.object({
+  opportunityId: z.string().optional(),
+  ownerId: z.string().optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const createPolicyRuleSchema = z.object({
+  resource: z.string().min(1),
+  action: z.string().min(1),
+  role: z.string().min(1),
+  effect: z.enum(['ALLOW', 'DENY']),
+  priority: z.number().int().default(0),
+  enabled: z.boolean().default(true),
+  policyVersion: z.string().min(1),
+})
+
+export const updatePolicyRuleSchema = createPolicyRuleSchema.partial().strict()
+
+export const policyRuleQuerySchema = z.object({
+  resource: z.string().optional(),
+  action: z.string().optional(),
+  enabled: z.enum(['true', 'false']).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const createGoGateRequestSchema = z.object({
+  actionType: z.enum(['SEND_EMAIL', 'SEND_MESSAGE', 'PUBLISH_POST', 'CONTACT_PROSPECT', 'CREATE_ISSUE', 'TRIGGER_WORKFLOW', 'MODIFY_EXTERNAL_SYSTEM']),
+  target: z.string().min(1),
+  payload: z.record(z.string(), z.unknown()).optional(),
+})
+
+export const goGateQuerySchema = z.object({
+  status: z.enum(['READY', 'WAITING_FOR_GO', 'APPROVED', 'EXECUTING', 'EXECUTED', 'FAILED', 'EXPIRED', 'REJECTED']).optional(),
+  actionType: z.enum(['SEND_EMAIL', 'SEND_MESSAGE', 'PUBLISH_POST', 'CONTACT_PROSPECT', 'CREATE_ISSUE', 'TRIGGER_WORKFLOW', 'MODIFY_EXTERNAL_SYSTEM']).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+})
+
+export const goGateDecisionSchema = z.object({
+  reason: z.string().optional(),
+})

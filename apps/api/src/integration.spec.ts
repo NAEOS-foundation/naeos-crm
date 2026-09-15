@@ -558,4 +558,172 @@ describe('Phase 2 API integration', () => {
       expect(response.status).toBe(200)
     })
   })
+
+  describe('Phase 3 ecosystem and use cases', () => {
+    it('creates a community, contributor, partner, investor, and use case with audit events', async () => {
+      const community = await request(app).post('/api/v1/communities').set(admin).send({
+        name: `Builders Guild ${Date.now()}`,
+        purpose: 'Open-source community',
+      })
+      expect(community.status).toBe(201)
+      const communityId = community.body.data.id
+
+      const contributor = await request(app).post('/api/v1/contributors').set(admin).send({
+        name: 'Rina Haryanto',
+        role: 'MAINTAINER',
+        status: 'ACTIVE',
+        communityId,
+      })
+      expect(contributor.status).toBe(201)
+      expect(contributor.body.data.communityId).toBe(communityId)
+      const contributorId = contributor.body.data.id
+
+      const partner = await request(app).post('/api/v1/partners').set(admin).send({
+        name: `DigitalOcean ${Date.now()}`,
+        partnerType: 'TECHNOLOGY',
+      })
+      expect(partner.status).toBe(201)
+      const partnerId = partner.body.data.id
+
+      const investor = await request(app).post('/api/v1/investors').set(admin).send({
+        name: 'East Ventures',
+        investorType: 'VENTURE',
+      })
+      expect(investor.status).toBe(201)
+      const investorId = investor.body.data.id
+
+      const company = await request(app).post('/api/v1/companies').set(admin).send({
+        name: `UseCase Co ${Date.now()}`,
+      })
+      const opportunity = await request(app).post('/api/v1/opportunities').set(admin).send({
+        companyId: company.body.data.id,
+        name: 'SDK licensing pilot',
+        stage: 'PROPOSAL',
+        amount: 12000,
+      })
+      expect(opportunity.status).toBe(201)
+
+      const useCase = await request(app).post('/api/v1/use-cases').set(admin).send({
+        opportunityId: opportunity.body.data.id,
+        title: 'Transparent SDK licensing dashboard',
+        value: 12000,
+      })
+      expect(useCase.status).toBe(201)
+      expect(useCase.body.data.opportunityId).toBe(opportunity.body.data.id)
+      const useCaseId = useCase.body.data.id
+
+      const audit = await request(app).get('/api/v1/audit').query({ entityType: 'use-case' }).set(admin)
+      expect(audit.body.data.some((e: { action: string }) => e.action === 'use-case.created')).toBe(true)
+
+      expect((await request(app).get('/api/v1/contributors').set(member)).status).toBe(200)
+      expect((await request(app).post('/api/v1/contributors').set(member).send({ name: 'Nope', role: 'DEVELOPER' })).status).toBe(403)
+      expect((await request(app).post('/api/v1/partners').set(member).send({ name: 'Nope', partnerType: 'CHANNEL' })).status).toBe(403)
+
+      await request(app).delete(`/api/v1/use-cases/${useCaseId}`).set(admin)
+      await request(app).delete(`/api/v1/opportunities/${opportunity.body.data.id}`).set(admin)
+      await request(app).delete(`/api/v1/companies/${company.body.data.id}`).set(admin)
+      await request(app).delete(`/api/v1/investors/${investorId}`).set(admin)
+      await request(app).delete(`/api/v1/partners/${partnerId}`).set(admin)
+      await request(app).delete(`/api/v1/contributors/${contributorId}`).set(admin)
+      await request(app).delete(`/api/v1/communities/${communityId}`).set(admin)
+    })
+  })
+})
+
+describe('Phase 4 governance: policy rules and GO-Gate', () => {
+  let app: Express
+
+  beforeAll(() => {
+    app = createApp()
+  })
+
+  async function realAdminHeader() {
+    const users = await request(app).get('/api/v1/users').set(admin)
+    const realAdmin = users.body.data.find((u: { email: string }) => u.email === 'admin@naeos.local')
+    return devHeader(['admin'], realAdmin.id)
+  }
+
+  it('manages policy rules with audit events and RBAC', async () => {
+    const created = await request(app).post('/api/v1/policy/rules').set(admin).send({
+      resource: 'go-gate',
+      action: 'PUBLISH_POST',
+      role: 'MEMBER',
+      effect: 'DENY',
+      priority: 5,
+      enabled: true,
+      policyVersion: '2026.09.17',
+    })
+    expect(created.status).toBe(201)
+    const ruleId = created.body.data.id
+
+    expect((await request(app).get(`/api/v1/policy/rules/${ruleId}`).set(admin)).status).toBe(200)
+
+    const updated = await request(app).put(`/api/v1/policy/rules/${ruleId}`).set(admin).send({ enabled: false })
+    expect(updated.status).toBe(200)
+    expect(updated.body.data.enabled).toBe(false)
+
+    const audit = await request(app).get('/api/v1/audit').query({ entityType: 'policy-rule' }).set(admin)
+    const actions = audit.body.data.map((e: { action: string }) => e.action)
+    expect(actions).toContain('policy-rule.created')
+    expect(actions).toContain('policy-rule.updated')
+
+    expect((await request(app).delete(`/api/v1/policy/rules/${ruleId}`).set(admin)).status).toBe(204)
+
+    expect((await request(app).get('/api/v1/policy/rules').set(member)).status).toBe(403)
+  })
+
+  it('runs the full GO-Gate lifecycle with audit trail', async () => {
+    const adminHeader = await realAdminHeader()
+
+    const requested = await request(app).post('/api/v1/go-gate').set(adminHeader).send({
+      actionType: 'SEND_EMAIL',
+      target: 'campaign@naeos.local',
+      payload: { template: 'launch' },
+    })
+    expect(requested.status).toBe(201)
+    expect(requested.body.data.status).toBe('WAITING_FOR_GO')
+    const requestId = requested.body.data.id
+
+    const approved = await request(app).post(`/api/v1/go-gate/${requestId}/approve`).set(adminHeader).send({})
+    expect(approved.status).toBe(200)
+    expect(approved.body.data.status).toBe('APPROVED')
+    expect(approved.body.data.expiresAt).toBeTruthy()
+    expect(approved.body.data.policyVersion).toBe('2026.09.17')
+
+    const executed = await request(app).post(`/api/v1/go-gate/${requestId}/execute`).set(adminHeader).send({})
+    expect(executed.status).toBe(200)
+    expect(executed.body.data.status).toBe('EXECUTED')
+    expect(executed.body.data.result).toBe('verified')
+    expect(executed.body.data.providerResponse.provider).toBe('email')
+
+    const audit = await request(app).get('/api/v1/audit').query({ entityType: 'go-gate-request' }).set(admin)
+    const actions = audit.body.data.map((e: { action: string }) => e.action)
+    expect(actions).toContain('go-gate.requested')
+    expect(actions).toContain('go-gate.approved')
+    expect(actions).toContain('go-gate.executed')
+  })
+
+  it('rejects policy-denied requests and restricts approvals by role', async () => {
+    const adminHeader = await realAdminHeader()
+    const memberAsRealUser = devHeader(['member'], JSON.parse(adminHeader['x-naeos-dev-user']).id)
+
+    const denied = await request(app).post('/api/v1/go-gate').set(memberAsRealUser).send({
+      actionType: 'SEND_EMAIL',
+      target: 'prospect@naeos.local',
+    })
+    expect(denied.status).toBe(201)
+    expect(denied.body.data.status).toBe('REJECTED')
+    expect(denied.body.data.policyVersion).toBe('2026.09.17')
+
+    const requested = await request(app).post('/api/v1/go-gate').set(adminHeader).send({
+      actionType: 'SEND_EMAIL',
+      target: 'partner@naeos.local',
+    })
+    expect(requested.status).toBe(201)
+    expect(requested.body.data.status).toBe('WAITING_FOR_GO')
+
+    expect(
+      (await request(app).post(`/api/v1/go-gate/${requested.body.data.id}/approve`).set(memberAsRealUser).send({})).status,
+    ).toBe(403)
+  })
 })

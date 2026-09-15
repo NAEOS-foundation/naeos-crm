@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, UserStatus, CompanyStatus, ContactStatus, LeadStatus, ActivityType, TaskStatus, OpportunityStage, CampaignType, CampaignStatus, CampaignStepActionType, CampaignStepStatus, FollowUpStatus } from '@prisma/client'
+import { PrismaClient, UserRole, UserStatus, CompanyStatus, ContactStatus, LeadStatus, ActivityType, TaskStatus, OpportunityStage, CampaignType, CampaignStatus, CampaignStepActionType, CampaignStepStatus, FollowUpStatus, ContributorRole, EcosystemStatus, PartnerType, InvestorType, PolicyEffect, GoGateActionType } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
@@ -117,12 +117,91 @@ async function seedPhase2Data() {
   }
 }
 
+async function seedPhase3Data() {
+  const owner = await prisma.user.findFirst({})
+  if (!owner) return
+
+  if ((await prisma.community.count()) === 0) {
+    const community = await prisma.community.create({
+      data: {
+        name: 'NAEOS Builders Guild',
+        purpose: 'Open-source contributors and maintainers',
+        status: EcosystemStatus.ACTIVE,
+        ownerId: owner.id,
+      },
+    })
+    await prisma.contributor.createMany({
+      data: [
+        { name: 'Rina Haryanto', role: ContributorRole.MAINTAINER, status: EcosystemStatus.ACTIVE, communityId: community.id, ownerId: owner.id },
+        { name: 'Bagus Pratama', role: ContributorRole.DEVELOPER, status: EcosystemStatus.ACTIVE, communityId: community.id, ownerId: owner.id },
+        { name: 'Cici Wijaya', role: ContributorRole.ADVISOR, status: EcosystemStatus.INACTIVE, ownerId: owner.id },
+      ],
+    })
+    console.log('Community and contributors seeded.')
+  }
+
+  if ((await prisma.partner.count()) === 0) {
+    await prisma.partner.createMany({
+      data: [
+        { name: 'DigitalOcean', partnerType: PartnerType.TECHNOLOGY, status: EcosystemStatus.ACTIVE, ownerId: owner.id },
+        { name: 'GoPay', partnerType: PartnerType.INTEGRATION, status: EcosystemStatus.ACTIVE, ownerId: owner.id },
+        { name: 'SGInnovate', partnerType: PartnerType.STRATEGIC, status: EcosystemStatus.ACTIVE, ownerId: owner.id },
+      ],
+    })
+    console.log('Partners seeded.')
+  }
+
+  if ((await prisma.investor.count()) === 0) {
+    await prisma.investor.createMany({
+      data: [
+        { name: 'East Ventures', investorType: InvestorType.VENTURE, status: EcosystemStatus.ACTIVE, ownerId: owner.id },
+        { name: 'Indico Capital', investorType: InvestorType.SEED, status: EcosystemStatus.ACTIVE, ownerId: owner.id },
+      ],
+    })
+    console.log('Investors seeded.')
+  }
+
+  if ((await prisma.useCase.count()) === 0) {
+    const opportunity = await prisma.opportunity.findFirst({ orderBy: { createdAt: 'asc' } })
+    if (opportunity) {
+      await prisma.useCase.create({
+        data: {
+          opportunityId: opportunity.id,
+          title: 'Transparent SDK licensing dashboard',
+          summary: 'Give enterprises visibility into SDK usage and compliance.',
+          value: 12000,
+          ownerId: owner.id,
+        },
+      })
+      console.log('Use case seeded.')
+    }
+  }
+}
+
+async function seedPhase4Data() {
+  const POLICY_VERSION = '2026.09.17'
+
+  if ((await prisma.policyRule.count()) === 0) {
+    await prisma.policyRule.createMany({
+      data: [
+        { resource: 'go-gate', action: GoGateActionType.SEND_EMAIL, role: UserRole.MANAGER, effect: PolicyEffect.ALLOW, priority: 0, enabled: true, policyVersion: POLICY_VERSION },
+        { resource: 'go-gate', action: GoGateActionType.SEND_EMAIL, role: UserRole.ADMIN, effect: PolicyEffect.ALLOW, priority: 0, enabled: true, policyVersion: POLICY_VERSION },
+        { resource: 'go-gate', action: GoGateActionType.CONTACT_PROSPECT, role: UserRole.MANAGER, effect: PolicyEffect.ALLOW, priority: 0, enabled: true, policyVersion: POLICY_VERSION },
+        { resource: 'policy', action: 'write', role: UserRole.ADMIN, effect: PolicyEffect.ALLOW, priority: 0, enabled: true, policyVersion: POLICY_VERSION },
+      ],
+    })
+    console.log('Policy rules seeded.')
+  }
+}
+
 async function main() {
   const existing = await prisma.user.count()
   if (existing > 0) {
     console.log('Database already seeded, skipping base seed.')
     await seedPipelineStages()
     await seedPhase2Data()
+    await seedPhase3Data()
+    await seedPhase4Data()
     return
   }
 
@@ -226,6 +305,8 @@ async function main() {
   console.log('Seed complete.')
   await seedPipelineStages()
   await seedPhase2Data()
+  await seedPhase3Data()
+  await seedPhase4Data()
 }
 
 main()

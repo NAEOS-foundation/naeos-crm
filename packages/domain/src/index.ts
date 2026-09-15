@@ -12,6 +12,20 @@ export type CampaignStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCH
 export type CampaignStepActionType = 'EMAIL' | 'CALL' | 'TASK' | 'WAIT'
 export type CampaignStepStatus = 'PENDING' | 'READY' | 'EXECUTING' | 'DONE' | 'SKIPPED'
 export type FollowUpStatus = 'OPEN' | 'DONE' | 'DEFERRED' | 'CANCELLED'
+export type EcosystemStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'
+export type ContributorRole = 'DEVELOPER' | 'DESIGNER' | 'REVIEWER' | 'MAINTAINER' | 'ADVISOR'
+export type PartnerType = 'TECHNOLOGY' | 'INTEGRATION' | 'STRATEGIC' | 'CHANNEL' | 'RESELLER'
+export type InvestorType = 'ANGEL' | 'SEED' | 'VENTURE' | 'STRATEGIC' | 'OTHER'
+export type PolicyEffect = 'ALLOW' | 'DENY'
+export type GoGateStatus = 'READY' | 'WAITING_FOR_GO' | 'APPROVED' | 'EXECUTING' | 'EXECUTED' | 'FAILED' | 'EXPIRED' | 'REJECTED'
+export type GoGateActionType =
+  | 'SEND_EMAIL'
+  | 'SEND_MESSAGE'
+  | 'PUBLISH_POST'
+  | 'CONTACT_PROSPECT'
+  | 'CREATE_ISSUE'
+  | 'TRIGGER_WORKFLOW'
+  | 'MODIFY_EXTERNAL_SYSTEM'
 
 export interface User {
   id: string
@@ -156,6 +170,90 @@ export interface FollowUp {
   status: FollowUpStatus
   ownerId?: string
   notes?: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface Contributor {
+  id: string
+  name: string
+  role: ContributorRole
+  status: EcosystemStatus
+  communityId?: string
+  ownerId?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface Partner {
+  id: string
+  name: string
+  partnerType: PartnerType
+  status: EcosystemStatus
+  ownerId?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface Community {
+  id: string
+  name: string
+  purpose?: string
+  status: EcosystemStatus
+  ownerId?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface Investor {
+  id: string
+  name: string
+  investorType: InvestorType
+  status: EcosystemStatus
+  ownerId?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface UseCase {
+  id: string
+  opportunityId: string
+  title: string
+  summary?: string | null
+  value?: number | null
+  ownerId?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface PolicyRule {
+  id: string
+  resource: string
+  action: string
+  role: string
+  effect: PolicyEffect
+  priority: number
+  enabled: boolean
+  policyVersion: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface GoGateRequest {
+  id: string
+  actionType: GoGateActionType
+  target: string
+  payload?: Record<string, unknown> | null
+  status: GoGateStatus
+  policyVersion?: string
+  reason?: string
+  requestedBy?: string
+  approvedBy?: string
+  expiresAt?: Date | null
+  executedAt?: Date | null
+  verifiedAt?: Date | null
+  providerResponse?: Record<string, unknown> | null
+  result?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -310,6 +408,63 @@ export interface FollowUpRepository {
   create(input: Omit<FollowUp, 'id' | 'createdAt' | 'updatedAt'>): Promise<FollowUp>
   update(id: string, input: Partial<FollowUp>): Promise<FollowUp | null>
   delete(id: string): Promise<boolean>
+}
+
+export interface ContributorRepository {
+  findById(id: string): Promise<Contributor | null>
+  list(filters?: { status?: EcosystemStatus; role?: ContributorRole; communityId?: string }): Promise<Contributor[]>
+  create(input: Omit<Contributor, 'id' | 'createdAt' | 'updatedAt'>): Promise<Contributor>
+  update(id: string, input: Partial<Contributor>): Promise<Contributor | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface PartnerRepository {
+  findById(id: string): Promise<Partner | null>
+  list(filters?: { status?: EcosystemStatus; partnerType?: PartnerType }): Promise<Partner[]>
+  create(input: Omit<Partner, 'id' | 'createdAt' | 'updatedAt'>): Promise<Partner>
+  update(id: string, input: Partial<Partner>): Promise<Partner | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface CommunityRepository {
+  findById(id: string): Promise<Community | null>
+  list(filters?: { status?: EcosystemStatus }): Promise<Community[]>
+  create(input: Omit<Community, 'id' | 'createdAt' | 'updatedAt'>): Promise<Community>
+  update(id: string, input: Partial<Community>): Promise<Community | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface InvestorRepository {
+  findById(id: string): Promise<Investor | null>
+  list(filters?: { status?: EcosystemStatus; investorType?: InvestorType }): Promise<Investor[]>
+  create(input: Omit<Investor, 'id' | 'createdAt' | 'updatedAt'>): Promise<Investor>
+  update(id: string, input: Partial<Investor>): Promise<Investor | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface UseCaseRepository {
+  findById(id: string): Promise<UseCase | null>
+  list(filters?: { opportunityId?: string; ownerId?: string }): Promise<UseCase[]>
+  listByOpportunity(opportunityId: string): Promise<UseCase[]>
+  create(input: Omit<UseCase, 'id' | 'createdAt' | 'updatedAt'>): Promise<UseCase>
+  update(id: string, input: Partial<UseCase>): Promise<UseCase | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface PolicyRuleRepository {
+  findById(id: string): Promise<PolicyRule | null>
+  list(filters?: { resource?: string; action?: string; enabled?: boolean }): Promise<PolicyRule[]>
+  findForEvaluation(resource: string, action: string, roles: UserRole[]): Promise<PolicyRule[]>
+  create(input: Omit<PolicyRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<PolicyRule>
+  update(id: string, input: Partial<PolicyRule>): Promise<PolicyRule | null>
+  delete(id: string): Promise<boolean>
+}
+
+export interface GoGateRequestRepository {
+  findById(id: string): Promise<GoGateRequest | null>
+  list(filters?: { status?: GoGateStatus; actionType?: GoGateActionType }): Promise<GoGateRequest[]>
+  create(input: Omit<GoGateRequest, 'id' | 'createdAt' | 'updatedAt'>): Promise<GoGateRequest>
+  update(id: string, input: Partial<GoGateRequest>): Promise<GoGateRequest | null>
 }
 
 export interface AnalyticsRepository {
