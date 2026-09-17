@@ -2,6 +2,7 @@ import { describe, expect, it, beforeAll } from 'vitest'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createApp } from './app'
+import { PrismaGoGateRequestReadPort } from './prisma-ports'
 
 const devHeader = (roles: string[], id = 'test-user') => ({
   'x-naeos-dev-user': JSON.stringify({ id, email: `test@naeos.local`, roles }),
@@ -725,5 +726,110 @@ describe('Phase 4 governance: policy rules and GO-Gate', () => {
     expect(
       (await request(app).post(`/api/v1/go-gate/${requested.body.data.id}/approve`).set(memberAsRealUser).send({})).status,
     ).toBe(403)
+  })
+
+  describe('GO-Gate atomic transitions', () => {
+    const port = new PrismaGoGateRequestReadPort()
+
+    async function createRequest(overrides: Partial<Parameters<typeof port.create>[0]> = {}) {
+      const created = await request(app)
+        .post('/api/v1/go-gate')
+        .set(admin)
+        .send({
+          actionType: 'SEND_EMAIL',
+          target: `atomic-${Date.now()}-${Math.random().toString(36).slice(2)}@naeos.local`,
+          ...overrides,
+        })
+      expect(created.status).toBe(201)
+      return created.body.data
+    }
+
+    it('allows only one winner for parallel executions', async () => {
+      const gate = await createRequest()
+      await request(app).post(`/api/v1/go-gate/${gate.id}/approve`).set(admin).send({})
+
+      const results = await Promise.all([
+        port.transition(gate.id, 'APPROVED', { status: 'EXECUTING' }),
+        port.transition(gate.id, 'APPROVED', { status: 'EXECUTING' }),
+      ])
+      const succeeded = results.filter((r) => r !== null)
+      expect(succeeded).toHaveLength(1)
+      expect(succeeded[0]?.status).toBe('EXECUTING')
+      const loser = await port.findById(gate.id)
+      expect(loser?.status).toBe('EXECUTING')
+
+      await port.transition(gate.id, 'EXECUTING', {
+        status: 'EXECUTED',
+        executedAt: new Date(),
+        result: 'verified',
+      })
+    })
+
+    it('does not overwrite terminal statuses via expiry transitions', async () => {
+      const gate = await createRequest()
+      await request(app).post(`/api/v1/go-gate/${gate.id}/approve`).set(admin).send({})
+
+      const executed = await port.transition(gate.id, 'APPROVED', {
+        status: 'EXECUTED',
+        executedAt: new Date(),
+        result: 'verified',
+      })
+      expect(executed?.status).toBe('EXECUTED')
+
+      const expiredAttempt = await port.transition(gate.id, 'APPROVED', { status: 'EXPIRED' })
+      expect(expiredAttempt).toBeNull()
+
+      const afterExpiry = await port.findById(gate.id)
+      expect(afterExpiry?.status).toBe('EXECUTED')
+    })
+
+    it('keeps expiry guards atomic with status transitions', async () => {
+      const gate = await createRequest()
+      await request(app).post(`/api/v1/go-gate/${gate.id}/approve`).set(admin).send({})
+      const approved = await port.findById(gate.id)
+
+      const stale = await port.transition(
+        gate.id,
+        'APPROVED',
+        { status: 'EXECUTING' },
+        new Date((approved?.expiresAt?.getTime() ?? 0) + 1000),
+      )
+      expect(stale).toBeNull()
+
+      const valid = await port.transition(
+        gate.id,
+        'APPROVED',
+        { status: 'EXECUTING' },
+        new Date((approved?.expiresAt?.getTime() ?? 0) - 1000),
+      )
+      expect(valid?.status).toBe('EXECUTING')
+
+      await port.transition(gate.id, 'EXECUTING', {
+        status: 'EXECUTED',
+        executedAt: new Date(),
+        result: 'verified',
+      })
+    })
+
+    it('does not overwrite terminal statuses when approve/reject race', async () => {
+      const gate = await createRequest()
+
+      const [approve, reject] = await Promise.all([
+        port.transition(gate.id, 'WAITING_FOR_GO', { status: 'APPROVED', approvedBy: 'test-user' }),
+        port.transition(gate.id, 'WAITING_FOR_GO', { status: 'REJECTED', approvedBy: 'test-user' }),
+      ])
+      const outcomes = [approve, reject].filter((r) => r !== null)
+      expect(outcomes).toHaveLength(1)
+      expect(['APPROVED', 'REJECTED']).toContain(outcomes[0]?.status)
+
+      const loserStatus = approve === null ? 'APPROVED' : 'REJECTED'
+      await expect(
+        port.transition(gate.id, 'WAITING_FOR_GO', { status: loserStatus }),
+      ).resolves.toBeNull()
+    })
+
+    it('returns null when the id is unknown', async () => {
+      expect(await port.transition('missing-go-gate-id', 'APPROVED', { status: 'EXECUTING' })).toBeNull()
+    })
   })
 })

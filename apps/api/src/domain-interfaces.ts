@@ -197,6 +197,7 @@ export interface GoGateRequestReadPort {
   list(params?: { status?: GoGateRequest['status']; actionType?: GoGateRequest['actionType'] } & PageQuery): Promise<{ data: GoGateRequest[]; total: number }>
   create(input: Omit<GoGateRequest, 'id' | 'createdAt' | 'updatedAt'>): Promise<GoGateRequest>
   update(id: string, input: Partial<GoGateRequest>): Promise<GoGateRequest | null>
+  transition(id: string, expectedStatus: GoGateRequest['status'], input: Partial<GoGateRequest>, expiresAfter?: Date): Promise<GoGateRequest | null>
 }
 
 export interface PipelineAnalyticsReadPort {

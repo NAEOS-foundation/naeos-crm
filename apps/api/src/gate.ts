@@ -85,13 +85,13 @@ export class GoGateService {
       throw conflict(`Cannot approve request in status ${current.status}`)
     }
 
-    const updated = await this.requests.update(id, {
+    const updated = await this.requests.transition(id, 'WAITING_FOR_GO', {
       status: 'APPROVED',
       approvedBy: approver.id,
       expiresAt: new Date(Date.now() + GO_EXPIRY_MS),
       reason: input.reason ?? current.reason,
     })
-    if (!updated) throw notFound('GO_GATE_NOT_FOUND', 'Go-Gate request not found')
+    if (!updated) throw conflict('Go-Gate request status has changed')
 
     await this.audit.record({
       actorId: approver.id,
@@ -117,12 +117,12 @@ export class GoGateService {
       throw conflict(`Cannot reject request in status ${current.status}`)
     }
 
-    const updated = await this.requests.update(id, {
+    const updated = await this.requests.transition(id, 'WAITING_FOR_GO', {
       status: 'REJECTED',
       approvedBy: approver.id,
       reason: input.reason ?? current.reason,
     })
-    if (!updated) throw notFound('GO_GATE_NOT_FOUND', 'Go-Gate request not found')
+    if (!updated) throw conflict('Go-Gate request status has changed')
 
     await this.audit.record({
       actorId: approver.id,
@@ -146,8 +146,13 @@ export class GoGateService {
     const current = await this.requests.findById(id)
     if (!current) throw notFound('GO_GATE_NOT_FOUND', 'Go-Gate request not found')
 
-    if (current.status === 'EXPIRED' || (current.expiresAt && current.expiresAt.getTime() < Date.now())) {
-      const expired = await this.requests.update(id, { status: 'EXPIRED' })
+    if (current.status !== 'APPROVED') {
+      throw conflict(`Cannot execute request in status ${current.status}`)
+    }
+
+    const now = new Date()
+    if (!current.expiresAt || current.expiresAt.getTime() <= now.getTime()) {
+      const expired = await this.requests.transition(id, 'APPROVED', { status: 'EXPIRED' })
       if (expired) {
         await this.audit.record({
           actorId: executor.id,
@@ -167,56 +172,28 @@ export class GoGateService {
       throw conflict('Go-Gate request has expired')
     }
 
-    if (current.status !== 'APPROVED') {
-      throw conflict(`Cannot execute request in status ${current.status}`)
-    }
-
-    await this.requests.update(id, { status: 'EXECUTING' })
-
     const adapter = this.actions[current.actionType] ?? this.actions.default
     if (!adapter) throw conflict(`No adapter configured for action ${current.actionType}`)
 
+    const executing = await this.requests.transition(id, 'APPROVED', { status: 'EXECUTING' }, new Date())
+    if (!executing) throw conflict('Go-Gate request status has changed or approval has expired')
+
+    let result: Awaited<ReturnType<ExternalActionPort['execute']>>
     try {
-      const result = await adapter.execute({
+      result = await adapter.execute({
         actionType: current.actionType,
         target: current.target,
         payload: current.payload ?? {},
         requestedBy: current.requestedBy,
         approvedBy: current.approvedBy,
       })
-
-      const verified = result.ok === true
-      const final = await this.requests.update(id, {
-        status: verified ? 'EXECUTED' : 'FAILED',
-        executedAt: new Date(),
-        verifiedAt: new Date(),
-        providerResponse: (result.providerResponse as Record<string, unknown>) ?? null,
-        result: verified ? 'verified' : 'provider-response-failed',
-      })
-      if (!final) throw notFound('GO_GATE_NOT_FOUND', 'Go-Gate request not found')
-
-      await this.audit.record({
-        actorId: executor.id,
-        actorType: 'user',
-        action: verified ? 'go-gate.executed' : 'go-gate.failed',
-        entityType: 'go-gate-request',
-        entityId: final.id,
-        requestId: meta.requestId,
-        source: meta.source ?? 'api',
-        result: verified ? 'SUCCESS' : 'FAILURE',
-        policyVersion: final.policyVersion ?? undefined,
-        reason: verified ? 'verified' : 'provider-response-failed',
-        previousState: current as unknown as Record<string, unknown>,
-        newState: final as unknown as Record<string, unknown>,
-      })
-
-      return final
     } catch {
-      await this.requests.update(id, {
+      const failed = await this.requests.transition(id, 'EXECUTING', {
         status: 'FAILED',
         executedAt: new Date(),
         result: 'adapter-error',
       })
+      if (!failed) throw conflict('Go-Gate request status has changed')
       await this.audit.record({
         actorId: executor.id,
         actorType: 'user',
@@ -228,8 +205,37 @@ export class GoGateService {
         result: 'FAILURE',
         policyVersion: current.policyVersion ?? undefined,
         reason: 'adapter-error',
+        previousState: executing as unknown as Record<string, unknown>,
+        newState: failed as unknown as Record<string, unknown>,
       })
       throw conflict('Go-Gate execution failed')
     }
+
+    const verified = result.ok === true
+    const final = await this.requests.transition(id, 'EXECUTING', {
+      status: verified ? 'EXECUTED' : 'FAILED',
+      executedAt: new Date(),
+      verifiedAt: new Date(),
+      providerResponse: (result.providerResponse as Record<string, unknown>) ?? null,
+      result: verified ? 'verified' : 'provider-response-failed',
+    })
+    if (!final) throw conflict('Go-Gate request status has changed')
+
+    await this.audit.record({
+      actorId: executor.id,
+      actorType: 'user',
+      action: verified ? 'go-gate.executed' : 'go-gate.failed',
+      entityType: 'go-gate-request',
+      entityId: final.id,
+      requestId: meta.requestId,
+      source: meta.source ?? 'api',
+      result: verified ? 'SUCCESS' : 'FAILURE',
+      policyVersion: final.policyVersion ?? undefined,
+      reason: verified ? 'verified' : 'provider-response-failed',
+      previousState: executing as unknown as Record<string, unknown>,
+      newState: final as unknown as Record<string, unknown>,
+    })
+
+    return final
   }
 }

@@ -62,6 +62,7 @@ import type {
   PipelineAnalyticsSummary,
 } from '@naeos-crm/domain'
 import { GoGateService } from './gate'
+import type { ExternalActionPort, PolicyPort } from './ports'
 
 function noopSink(): AuditSink {
   return { append: vi.fn().mockResolvedValue(undefined) }
@@ -1139,10 +1140,19 @@ function createGoGatePort(): GoGateRequestReadPort & { storage: GoGateRequest[] 
       storage[index] = { ...storage[index], ...input, updatedAt: new Date() }
       return storage[index]
     },
+    async transition(id, expectedStatus, input, expiresAfter) {
+      const index = storage.findIndex((g) => g.id === id && g.status === expectedStatus)
+      if (index === -1) return null
+      const current = storage[index]
+      if (expiresAfter && (!current.expiresAt || current.expiresAt.getTime() <= expiresAfter.getTime())) return null
+      storage[index] = { ...current, ...input, updatedAt: new Date() }
+      return storage[index]
+    },
   }
 }
 
 describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
+  const actor: Parameters<GoGateService['execute']>[1] = { id: 'user-admin', roles: ['ADMIN'] }
   const adminMeta = {
     actorId: 'user-admin',
     requestId: 'req-p4-1',
@@ -1157,17 +1167,18 @@ describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
   function createGateFacade(options: { allow: boolean }) {
     const requests = createGoGatePort()
     const policy = {
-      evaluate: vi.fn().mockResolvedValue({
+      evaluate: vi.fn<PolicyPort['evaluate']>().mockResolvedValue({
         allow: options.allow,
         policyVersion: '2026.09.17',
         reason: options.allow ? 'policy-rule:allow' : 'policy-rule:deny',
       }),
     }
     const actions = {
-      SEND_EMAIL: { execute: vi.fn().mockResolvedValue({ ok: true, providerResponse: { provider: 'email', payload: {} } }) },
+      SEND_EMAIL: { execute: vi.fn<ExternalActionPort['execute']>().mockResolvedValue({ ok: true, providerResponse: { provider: 'email', payload: {} } }) },
     }
-    const gate = new GoGateService(requests, policy as any, actions, createAuditService())
-    return { facade: new GoGateFacade(gate), requests }
+    const sink = { append: vi.fn<AuditSink['append']>().mockResolvedValue(undefined) }
+    const gate = new GoGateService(requests, policy, actions, createAuditService(sink))
+    return { facade: new GoGateFacade(gate), requests, actions, sink }
   }
 
   it('creates and manages policy rules with audit events, admin only', async () => {
@@ -1242,5 +1253,207 @@ describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
     await expect(
       facade.approve(executed.id, { id: 'user-admin', roles: ['ADMIN'] }, { meta: { requestId: 'req-7' } }),
     ).rejects.toThrow(/status/)
+  })
+
+  it('executes the adapter only once when execute is invoked concurrently', async () => {
+    const { facade, requests, actions } = createGateFacade({ allow: true })
+    const request = await facade.requestExecution({
+      actionType: 'SEND_EMAIL',
+      target: 'prospect@naeos.local',
+      requester: actor,
+      meta: { requestId: 'req-p4-10' },
+    })
+    await facade.approve(request.id, actor, { meta: { requestId: 'req-p4-10' } })
+
+    const attempts = await Promise.allSettled(
+      Array.from({ length: 3 }, () => facade.execute(request.id, actor, { requestId: 'req-p4-10' })),
+    )
+    const fulfilled = attempts.filter((r) => r.status === 'fulfilled')
+    expect(fulfilled).toHaveLength(1)
+    expect(actions.SEND_EMAIL.execute).toHaveBeenCalledTimes(1)
+    expect((await requests.findById(request.id))?.status).toBe('EXECUTED')
+  })
+
+  it('resolves approve and reject races with a single winner', async () => {
+    const { facade, requests, sink } = createGateFacade({ allow: true })
+    const request = await facade.requestExecution({
+      actionType: 'SEND_EMAIL',
+      target: 'prospect@naeos.local',
+      requester: actor,
+      meta: { requestId: 'req-p4-11' },
+    })
+
+    const outcomes = await Promise.allSettled([
+      facade.approve(request.id, actor, { meta: { requestId: 'req-p4-11' } }),
+      facade.reject(request.id, actor, { reason: 'veto', meta: { requestId: 'req-p4-11' } }),
+    ])
+    const fulfilled = outcomes.filter((r) => r.status === 'fulfilled')
+    expect(fulfilled).toHaveLength(1)
+
+    const final = await requests.findById(request.id)
+    expect(final?.status === 'APPROVED' || final?.status === 'REJECTED').toBe(true)
+    expect(fulfilled[0].status === 'fulfilled' ? fulfilled[0].value.status : null).toBe(final?.status)
+    expect(sink.append).toHaveBeenCalledTimes(2)
+  })
+
+  it('marks EXPIRED and blocks the adapter when approval is missing expiry or already elapsed', async () => {
+    const { facade, requests, actions, sink } = createGateFacade({ allow: true })
+    const stale = await requests.create({
+      actionType: 'SEND_EMAIL',
+      target: 'stale@naeos.local',
+      status: 'APPROVED',
+      requestedBy: 'user-admin',
+    })
+
+    await expect(facade.execute(stale.id, actor, { requestId: 'req-p4-12' })).rejects.toThrow(/expired/)
+    expect((await requests.findById(stale.id))?.status).toBe('EXPIRED')
+    expect(actions.SEND_EMAIL.execute).not.toHaveBeenCalled()
+    expect(sink.append).toHaveBeenCalledWith(expect.objectContaining({ action: 'go-gate.expired' }))
+
+    const elapsed = await requests.create({
+      actionType: 'SEND_EMAIL',
+      target: 'elapsed@naeos.local',
+      status: 'APPROVED',
+      requestedBy: 'user-admin',
+      expiresAt: new Date(Date.now() - 1000),
+    })
+
+    await expect(facade.execute(elapsed.id, actor, { requestId: 'req-p4-13' })).rejects.toThrow(/expired/)
+    expect((await requests.findById(elapsed.id))?.status).toBe('EXPIRED')
+    expect(actions.SEND_EMAIL.execute).not.toHaveBeenCalled()
+  })
+
+  it('keeps terminal EXECUTED, FAILED, REJECTED, and EXECUTING states even past expiry', async () => {
+    const { facade, requests, actions, sink } = createGateFacade({ allow: true })
+    for (const status of ['EXECUTED', 'FAILED', 'REJECTED', 'EXECUTING'] as const) {
+      const request = await requests.create({
+        actionType: 'SEND_EMAIL',
+        target: `${status.toLowerCase()}@naeos.local`,
+        status,
+        requestedBy: 'user-admin',
+        expiresAt: new Date(Date.now() - 1000),
+      })
+
+      await expect(facade.execute(request.id, actor, { requestId: 'req-p4-14' })).rejects.toThrow(/status/)
+      expect((await requests.findById(request.id))?.status).toBe(status)
+    }
+    expect(actions.SEND_EMAIL.execute).not.toHaveBeenCalled()
+    expect(sink.append).not.toHaveBeenCalled()
+  })
+
+  it('leaves requests APPROVED when no adapter is configured', async () => {
+    const { facade, requests, sink } = createGateFacade({ allow: true })
+    const request = await facade.requestExecution({
+      actionType: 'SEND_EMAIL',
+      target: 'prospect@naeos.local',
+      requester: actor,
+      meta: { requestId: 'req-p4-15' },
+    })
+    await facade.approve(request.id, actor, { meta: { requestId: 'req-p4-15' } })
+    const adapterLess = new GoGateService(
+      requests,
+      { evaluate: vi.fn<PolicyPort['evaluate']>().mockResolvedValue({ allow: true, policyVersion: '2026.09.17' }) },
+      {},
+      createAuditService(sink),
+    )
+
+    await expect(
+      new GoGateFacade(adapterLess).execute(request.id, actor, { requestId: 'req-p4-15' }),
+    ).rejects.toThrow(/adapter/i)
+    expect((await requests.findById(request.id))?.status).toBe('APPROVED')
+    expect(sink.append).toHaveBeenCalledTimes(2)
+  })
+
+  it('marks requests FAILED and audits once when the adapter throws', async () => {
+    const { facade, requests, actions, sink } = createGateFacade({ allow: true })
+    const request = await facade.requestExecution({
+      actionType: 'SEND_EMAIL',
+      target: 'prospect@naeos.local',
+      requester: actor,
+      meta: { requestId: 'req-p4-16' },
+    })
+    await facade.approve(request.id, actor, { meta: { requestId: 'req-p4-16' } })
+    actions.SEND_EMAIL.execute.mockRejectedValueOnce(new Error('provider down'))
+
+    await expect(facade.execute(request.id, actor, { requestId: 'req-p4-16' })).rejects.toThrow(/failed/)
+    const final = await requests.findById(request.id)
+    expect(final?.status).toBe('FAILED')
+    expect(final?.result).toBe('adapter-error')
+    expect(sink.append).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'go-gate.failed', result: 'FAILURE', reason: 'adapter-error' }),
+    )
+    expect(sink.append).toHaveBeenCalledTimes(3)
+  })
+
+  it('marks requests FAILED without adapter errors when the provider responds with ok:false', async () => {
+    const { facade, actions, sink } = createGateFacade({ allow: true })
+    const request = await facade.requestExecution({
+      actionType: 'SEND_EMAIL',
+      target: 'prospect@naeos.local',
+      requester: actor,
+      meta: { requestId: 'req-p4-17' },
+    })
+    await facade.approve(request.id, actor, { meta: { requestId: 'req-p4-17' } })
+    actions.SEND_EMAIL.execute.mockResolvedValueOnce({ ok: false, providerResponse: { provider: 'email', payload: { code: 422 } } })
+
+    const final = await facade.execute(request.id, actor, { requestId: 'req-p4-17' })
+    expect(final.status).toBe('FAILED')
+    expect(final.result).toBe('provider-response-failed')
+    expect(final.providerResponse).toEqual({ provider: 'email', payload: { code: 422 } })
+    expect(sink.append).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'go-gate.failed', result: 'FAILURE', reason: 'provider-response-failed' }),
+    )
+    expect(actions.SEND_EMAIL.execute).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays EXECUTED without extra failed audits when post-execution audit recording rejects', async () => {
+    const { facade, requests, actions, sink } = createGateFacade({ allow: true })
+    const request = await facade.requestExecution({
+      actionType: 'SEND_EMAIL',
+      target: 'prospect@naeos.local',
+      requester: actor,
+      meta: { requestId: 'req-p4-18' },
+    })
+    await facade.approve(request.id, actor, { meta: { requestId: 'req-p4-18' } })
+    const originalAppend = sink.append.getMockImplementation()
+    sink.append.mockImplementation(async (event) => {
+      if (event.action === 'go-gate.executed') throw new Error('audit down')
+      await originalAppend?.(event)
+    })
+
+    const final = await facade.execute(request.id, actor, { requestId: 'req-p4-18' }).catch((error: unknown) => {
+      expect((error as Error).message).toBe('audit down')
+      return requests.findById(request.id)
+    })
+    expect(final?.status).toBe('EXECUTED')
+    expect(final?.result).toBe('verified')
+    expect(final?.executedAt).toBeTruthy()
+    expect(actions.SEND_EMAIL.execute).toHaveBeenCalledTimes(1)
+    expect(sink.append).toHaveBeenCalledWith(expect.objectContaining({ action: 'go-gate.executed' }))
+    const failedEvents = sink.append.mock.calls.filter(([event]) => event.action === 'go-gate.failed')
+    expect(failedEvents).toHaveLength(0)
+  })
+
+  it('keeps EXECUTING without failed audits when the final persistence transition loses the race', async () => {
+    const { facade, requests, actions, sink } = createGateFacade({ allow: true })
+    const request = await facade.requestExecution({
+      actionType: 'SEND_EMAIL',
+      target: 'prospect@naeos.local',
+      requester: actor,
+      meta: { requestId: 'req-p4-19' },
+    })
+    await facade.approve(request.id, actor, { meta: { requestId: 'req-p4-19' } })
+    const originalTransition = requests.transition.bind(requests)
+    requests.transition = async (id, expectedStatus, input, expiresAfter) => {
+      if (expectedStatus === 'EXECUTING' && input.status === 'EXECUTED') return null
+      return originalTransition(id, expectedStatus, input, expiresAfter)
+    }
+
+    await expect(facade.execute(request.id, actor, { requestId: 'req-p4-19' })).rejects.toThrow(/status has changed/)
+    const final = await requests.findById(request.id)
+    expect(final?.status).toBe('EXECUTING')
+    expect(final?.result).toBeUndefined()
+    expect(actions.SEND_EMAIL.execute).toHaveBeenCalledTimes(1)
+    expect(sink.append).toHaveBeenCalledTimes(2)
   })
 })

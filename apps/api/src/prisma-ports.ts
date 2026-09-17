@@ -1667,6 +1667,24 @@ export class PrismaGoGateRequestReadPort implements GoGateRequestReadPort {
     }
   }
 
+  async transition(
+    id: string,
+    expectedStatus: GoGateRequest['status'],
+    input: Partial<GoGateRequest>,
+    expiresAfter?: Date,
+  ): Promise<GoGateRequest | null> {
+    try {
+      const request = await prisma.goGateRequest.update({
+        where: { id, status: expectedStatus, ...(expiresAfter ? { expiresAt: { gt: expiresAfter } } : {}) },
+        data: { ...input, updatedAt: new Date() } as any,
+      })
+      return normalizeGoGateRequest(request)
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
+    }
+  }
+
   async update(id: string, input: Partial<GoGateRequest>): Promise<GoGateRequest | null> {
     try {
       const request = await prisma.goGateRequest.update({
