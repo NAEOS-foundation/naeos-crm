@@ -1,6 +1,15 @@
 name: Deploy CRM to Cloudflare
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/web/**"
+      - "cloudflare/**"
+      - "wrangler.jsonc"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/cloudflare-deploy.yml"
   workflow_dispatch:
 
 permissions:
@@ -12,7 +21,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy Worker and Container
+    name: Deploy Worker and Static Assets
     runs-on: ubuntu-latest
     environment: production
 
@@ -36,21 +45,11 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
-          test -n "$DATABASE_URL"
 
-      - name: Sync production database secret to Cloudflare
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          printf '%s' "$DATABASE_URL" | npx --yes wrangler@latest secret put DATABASE_URL --config wrangler.jsonc
-
-      - name: Deploy Worker and Container
+      - name: Deploy Worker and Static Assets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
