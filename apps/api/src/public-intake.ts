@@ -14,7 +14,7 @@ const assessmentIntakeSchema = z.object({
   controls: z.string().trim().max(2000).optional().default(''),
   risk: z.string().trim().max(2000).optional().default(''),
   goals: z.string().trim().max(2000).optional().default(''),
-  website: z.string().max(0).optional(),
+  website: z.string().max(500).optional(),
 })
 
 const attempts = new Map<string, { count: number; resetAt: number }>()
