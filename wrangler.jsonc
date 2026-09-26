@@ -3,33 +3,14 @@
   "name": "naeos-crm",
   "main": "cloudflare/worker.js",
   "compatibility_date": "2026-09-25",
+  "vars": {
+    "API_ORIGIN": "https://naeos-crm-api-production.up.railway.app"
+  },
   "assets": {
     "directory": "./apps/web/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
-  "containers": [
-    {
-      "class_name": "NAEOSCRMContainer",
-      "image": "./Dockerfile",
-      "instance_type": "basic",
-      "max_instances": 2
-    }
-  ],
-  "durable_objects": {
-    "bindings": [
-      {
-        "name": "NAEOS_CRM",
-        "class_name": "NAEOSCRMContainer"
-      }
-    ]
-  },
-  "migrations": [
-    {
-      "tag": "v1",
-      "new_sqlite_classes": ["NAEOSCRMContainer"]
-    }
-  ],
   "observability": {
     "enabled": true
   }
