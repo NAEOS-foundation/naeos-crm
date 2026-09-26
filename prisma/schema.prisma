@@ -160,21 +160,22 @@ enum AuditResult {
 }
 
 model User {
-  id        String     @id @default(cuid())
-  email     String     @unique
-  name      String
-  roles     UserRole[]
-  status    UserStatus @default(ACTIVE)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String
+  roles        UserRole[]
+  status       UserStatus @default(ACTIVE)
+  passwordHash String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
-  ownedCompanies   Company[]   @relation("CompanyOwner")
-  ownedLeads       Lead[]      @relation("LeadOwner")
-  assignedTasks    Task[]      @relation("TaskAssignee")
-  authoredActivities Activity[] @relation("ActivityAuthor")
+  ownedCompanies    Company[]     @relation("CompanyOwner")
+  ownedLeads        Lead[]        @relation("LeadOwner")
+  assignedTasks     Task[]        @relation("TaskAssignee")
+  authoredActivities Activity[]   @relation("ActivityAuthor")
   ownedOpportunities Opportunity[] @relation("OpportunityOwner")
-  ownedCampaigns   Campaign[]  @relation("CampaignOwner")
-  ownedFollowUps   FollowUp[]  @relation("FollowUpOwner")
+  ownedCampaigns    Campaign[]    @relation("CampaignOwner")
+  ownedFollowUps    FollowUp[]    @relation("FollowUpOwner")
   ownedContributors Contributor[] @relation("ContributorOwner")
   ownedPartners     Partner[]     @relation("PartnerOwner")
   ownedCommunities  Community[]   @relation("CommunityOwner")
@@ -192,11 +193,11 @@ model Company {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  owner      User?        @relation("CompanyOwner", fields: [ownerId], references: [id])
-  contacts   Contact[]
-  leads      Lead[]
-  activities Activity[]
-  tasks      Task[]
+  owner        User?        @relation("CompanyOwner", fields: [ownerId], references: [id])
+  contacts     Contact[]
+  leads        Lead[]
+  activities   Activity[]
+  tasks        Task[]
   opportunities Opportunity[]
 
   @@index([ownerId])
@@ -228,8 +229,8 @@ model Lead {
   status    LeadStatus @default(NEW)
   ownerId   String?
   score     Int?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   owner   User?   @relation("LeadOwner", fields: [ownerId], references: [id])
@@ -316,15 +317,15 @@ model PipelineStage {
 }
 
 model Opportunity {
-  id        String           @id @default(cuid())
+  id        String     @id @default(cuid())
   companyId String
   name      String
   stage     OpportunityStage @default(NEW)
-  amount    Decimal          @default(0) @db.Decimal(14, 2)
+  amount    Decimal    @default(0) @db.Decimal(14, 2)
   closeDate DateTime?
   ownerId   String?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   owner   User?   @relation("OpportunityOwner", fields: [ownerId], references: [id])
@@ -373,7 +374,7 @@ model CampaignStep {
 model FollowUp {
   id         String         @id @default(cuid())
   activityId String
-  dueAt      DateTime
+  dueAt      DateTime       @default(now())
   status     FollowUpStatus @default(OPEN)
   ownerId    String?
   notes      String?
@@ -424,15 +425,15 @@ model Partner {
 }
 
 model Community {
-  id        String          @id @default(cuid())
-  name      String          @unique
+  id        String     @id @default(cuid())
+  name      String     @unique
   purpose   String?
   status    EcosystemStatus @default(ACTIVE)
   ownerId   String?
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 
-  owner        User?          @relation("CommunityOwner", fields: [ownerId], references: [id])
+  owner        User?        @relation("CommunityOwner", fields: [ownerId], references: [id])
   contributors Contributor[]
 
   @@index([ownerId])
@@ -440,13 +441,13 @@ model Community {
 }
 
 model Investor {
-  id           String          @id @default(cuid())
+  id           String       @id @default(cuid())
   name         String
   investorType InvestorType
   status       EcosystemStatus @default(ACTIVE)
   ownerId      String?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   owner User? @relation("InvestorOwner", fields: [ownerId], references: [id])
 
@@ -462,8 +463,8 @@ model UseCase {
   summary       String?
   value         Decimal?   @db.Decimal(14, 2)
   ownerId       String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   owner       User?       @relation("UseCaseOwner", fields: [ownerId], references: [id])
@@ -491,18 +492,18 @@ model PolicyRule {
 }
 
 model PolicyDecision {
-  id               String   @id @default(cuid())
-  decision         PolicyEffect
-  policyVersion    String
-  matchedRuleId    String?
+  id                  String   @id @default(cuid())
+  decision            PolicyEffect
+  policyVersion       String
+  matchedRuleId       String?
   matchedRulePriority Int?
-  resource         String
-  action           String
-  role             String?
-  reason           String
-  evaluatorVersion String
-  evaluatedAt      DateTime @default(now())
-  createdAt        DateTime @default(now())
+  resource            String
+  action              String
+  role                String?
+  reason              String
+  evaluatorVersion    String
+  evaluatedAt         DateTime @default(now())
+  createdAt            DateTime @default(now())
 
   goGateRequests GoGateRequest[]
 
@@ -512,29 +513,29 @@ model PolicyDecision {
 }
 
 model GoGateRequest {
-  id               String             @id @default(cuid())
-  actionType       GoGateActionType
-  target           String
-  payload          Json?
-  status           GoGateStatus       @default(READY)
-  policyVersion    String?
-  reason           String?
-  requestedBy      String?
-  approvedBy       String?
-  expiresAt        DateTime?
-  executedAt       DateTime?
-  verifiedAt       DateTime?
-  providerResponse Json?
-  result           String?
-  idempotencyKey   String             @unique @default(cuid())
-  executionId      String?
-  provider         String?
+  id                String             @id @default(cuid())
+  actionType        GoGateActionType
+  target            String
+  payload           Json?
+  status            GoGateStatus       @default(READY)
+  policyVersion     String?
+  reason            String?
+  requestedBy       String?
+  approvedBy        String?
+  expiresAt         DateTime?
+  executedAt        DateTime?
+  verifiedAt        DateTime?
+  providerResponse  Json?
+  result            String?
+  idempotencyKey    String             @unique @default(cuid())
+  executionId       String?
+  provider          String?
   providerRequestId String?
-  executionAttempt Int                @default(0)
-  policyDecisionId String?
-  policyDecision   PolicyDecision?    @relation(fields: [policyDecisionId], references: [id], onDelete: SetNull)
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
+  executionAttempt  Int                @default(0)
+  policyDecisionId  String?
+  policyDecision    PolicyDecision?    @relation(fields: [policyDecisionId], references: [id], onDelete: SetNull)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([status])
   @@index([requestedBy])
