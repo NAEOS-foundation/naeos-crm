@@ -1,3 +1,5 @@
+import { DurableObject } from 'cloudflare:workers'
+
 export class NAEOSCRMContainer extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env)
