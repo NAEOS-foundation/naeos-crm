@@ -55,4 +55,5 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/naeos_crm
           AUTH_DISABLED: 'true'
+          AUTH_SECRET: ci-test-secret-012345678901234567890123456789
         run: npm test
