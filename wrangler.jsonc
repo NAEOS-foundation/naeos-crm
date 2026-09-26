@@ -1,0 +1,31 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "naeos-crm",
+  "main": "cloudflare/worker.js",
+  "compatibility_date": "2026-09-25",
+  "containers": [
+    {
+      "class_name": "NAEOSCRMContainer",
+      "image": "./Dockerfile",
+      "instance_type": "basic",
+      "max_instances": 2
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "NAEOS_CRM",
+        "class_name": "NAEOSCRMContainer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["NAEOSCRMContainer"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
