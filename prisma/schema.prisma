@@ -489,6 +489,27 @@ model PolicyRule {
   @@index([policyVersion])
 }
 
+model PolicyDecision {
+  id               String   @id @default(cuid())
+  decision         PolicyEffect
+  policyVersion    String
+  matchedRuleId    String?
+  matchedRulePriority Int?
+  resource         String
+  action           String
+  role             String?
+  reason           String
+  evaluatorVersion String
+  evaluatedAt      DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  goGateRequests GoGateRequest[]
+
+  @@index([policyVersion])
+  @@index([resource, action])
+  @@index([evaluatedAt])
+}
+
 model GoGateRequest {
   id               String             @id @default(cuid())
   actionType       GoGateActionType
@@ -504,11 +525,20 @@ model GoGateRequest {
   verifiedAt       DateTime?
   providerResponse Json?
   result           String?
+  idempotencyKey   String             @unique @default(cuid())
+  executionId      String?
+  provider         String?
+  providerRequestId String?
+  executionAttempt Int                @default(0)
+  policyDecisionId String?
+  policyDecision   PolicyDecision?    @relation(fields: [policyDecisionId], references: [id], onDelete: SetNull)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 
   @@index([status])
   @@index([requestedBy])
   @@index([actionType])
+  @@index([executionId])
+  @@index([provider, providerRequestId])
   @@index([createdAt])
 }
