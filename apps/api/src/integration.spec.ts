@@ -11,6 +11,42 @@ const devHeader = (roles: string[], id = 'test-user') => ({
 const admin = devHeader(['admin'])
 const member = devHeader(['member'])
 
+describe('Public assessment intake', () => {
+  it('accepts an assessment request without authentication and creates CRM records', async () => {
+    const response = await request(createApp())
+      .post('/api/v1/public/assessment-intake')
+      .set('x-request-id', 'assessment-intake-test')
+      .send({
+        name: 'Assessment Contact',
+        email: `assessment-${Date.now()}@example.com`,
+        company: `Assessment Co ${Date.now()}`,
+        agents: 'Codex, Claude Code',
+        workflows: 'Pull request and CI/CD',
+        controls: 'RBAC and review gates',
+        risk: 'Production-adjacent changes',
+        goals: 'Validate governance boundary',
+      })
+
+    expect(response.status).toBe(201)
+    expect(response.body.data.leadId).toBeTruthy()
+    expect(response.body.meta.request_id).toBe('assessment-intake-test')
+  })
+
+  it('rejects the honeypot field', async () => {
+    const response = await request(createApp())
+      .post('/api/v1/public/assessment-intake')
+      .send({
+        name: 'Bot',
+        email: 'bot@example.com',
+        company: 'Bot Co',
+        website: 'https://spam.example',
+      })
+
+    expect(response.status).toBe(400)
+    expect(response.body.error.code).toBe('INVALID_SUBMISSION')
+  })
+})
+
 describe('Phase 1 API integration', () => {
   let app: Express
 
