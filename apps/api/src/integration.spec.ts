@@ -31,7 +31,19 @@ describe('Public assessment intake', () => {
     expect(response.body.data.leadId).toBeTruthy()
     expect(response.body.meta.request_id).toBe('assessment-intake-test')
 
+    const lead = await request(createApp()).get(`/api/v1/leads/${response.body.data.leadId}`).set(admin)
+    const companyId = lead.body.data.companyId
     await request(createApp()).delete(`/api/v1/leads/${response.body.data.leadId}`).set(admin)
+
+    const contacts = await request(createApp()).get('/api/v1/contacts').query({ companyId }).set(admin)
+    for (const contact of contacts.body.data) {
+      await request(createApp()).delete(`/api/v1/contacts/${contact.id}`).set(admin)
+    }
+    const activities = await request(createApp()).get('/api/v1/activities').query({ companyId }).set(admin)
+    for (const activity of activities.body.data) {
+      await request(createApp()).delete(`/api/v1/activities/${activity.id}`).set(admin)
+    }
+    await request(createApp()).delete(`/api/v1/companies/${companyId}`).set(admin)
   })
 
   it('rejects the honeypot field', async () => {
