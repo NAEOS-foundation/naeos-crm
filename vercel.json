@@ -1,6 +1,8 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "buildCommand": "npx prisma generate && npm run build --workspace @naeos-crm/audit && npm run build --workspace @naeos-crm/auth && npm run build --workspace @naeos-crm/domain && npm run build --workspace @naeos-crm/shared && npm run build --workspace @naeos-crm/api",
+  "buildCommand": "npx prisma generate && npm run build --workspace @naeos-crm/audit && npm run build --workspace @naeos-crm/auth && npm run build --workspace @naeos-crm/domain && npm run build --workspace @naeos-crm/shared && npm run build --workspace @naeos-crm/api && npm run build --workspace @naeos-crm/web",
+  "outputDirectory": "apps/web/dist",
   "functions": {
     "api/index.ts": {
       "maxDuration": 30
@@ -8,8 +10,12 @@
   },
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/(.*)",
       "destination": "/api"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
