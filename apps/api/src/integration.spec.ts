@@ -30,6 +30,8 @@ describe('Public assessment intake', () => {
     expect(response.status).toBe(201)
     expect(response.body.data.leadId).toBeTruthy()
     expect(response.body.meta.request_id).toBe('assessment-intake-test')
+
+    await request(createApp()).delete(`/api/v1/leads/${response.body.data.leadId}`).set(admin)
   })
 
   it('rejects the honeypot field', async () => {
