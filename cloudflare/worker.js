@@ -22,7 +22,13 @@ export class NAEOSCRMContainer extends DurableObject {
 
 export default {
   async fetch(request, env) {
-    const id = env.NAEOS_CRM.idFromName('production')
-    return env.NAEOS_CRM.get(id).fetch(request)
+    const url = new URL(request.url)
+
+    if (url.pathname.startsWith('/api/') || url.pathname === '/health') {
+      const id = env.NAEOS_CRM.idFromName('production')
+      return env.NAEOS_CRM.get(id).fetch(request)
+    }
+
+    return env.ASSETS.fetch(request)
   },
 }
