@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Router } from 'express'
-import { PrismaActivityReadPort, PrismaAuditSink, PrismaCompanyReadPort, PrismaContactReadPort, PrismaLeadReadPort, prisma } from './prisma-ports'
+import { PrismaAuditSink, prisma } from './prisma-ports'
 import { AuditService } from '@naeos-crm/audit'
 import { asyncHandler } from './middleware'
 import { buildErrorResponse, buildSuccessMeta } from '@naeos-crm/shared'
@@ -34,11 +34,6 @@ function allow(ip: string): boolean {
 }
 
 const audit = new AuditService(new PrismaAuditSink())
-const companyPort = new PrismaCompanyReadPort()
-const contactPort = new PrismaContactReadPort()
-const leadPort = new PrismaLeadReadPort()
-const activityPort = new PrismaActivityReadPort()
-
 export const publicRouter = Router()
 
 publicRouter.post('/api/v1/public/assessment-intake', asyncHandler(async (req, res) => {
