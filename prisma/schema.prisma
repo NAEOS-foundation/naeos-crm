@@ -374,7 +374,7 @@ model CampaignStep {
 model FollowUp {
   id         String         @id @default(cuid())
   activityId String
-  dueAt      DateTime       @default(now())
+  dueAt      DateTime
   status     FollowUpStatus @default(OPEN)
   ownerId    String?
   notes      String?
