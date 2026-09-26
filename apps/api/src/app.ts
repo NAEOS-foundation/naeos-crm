@@ -7,7 +7,25 @@ import { authMiddleware, errorHandler, requestIdMiddleware } from './middleware'
 export function createApp() {
   const app = express()
 
-  app.use(cors())
+  const allowedOrigins = new Set(
+    (process.env.CORS_ORIGINS ?? 'https://naeos.dev')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+  )
+
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.has(origin)) {
+          callback(null, true)
+          return
+        }
+
+        callback(new Error('Origin not allowed by CORS'))
+      },
+    }),
+  )
   app.use(express.json())
   app.use(requestIdMiddleware)
 
