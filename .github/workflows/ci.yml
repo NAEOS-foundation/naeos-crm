@@ -42,6 +42,11 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/naeos_crm
         run: npx prisma migrate deploy
 
+      - name: Seed test database
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/naeos_crm
+        run: npx prisma db seed
+
       - name: Build all workspaces
         run: npm run build
 

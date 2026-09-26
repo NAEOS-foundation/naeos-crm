@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import { router } from './routes'
+import { publicRouter } from './public-intake'
 import { authMiddleware, errorHandler, requestIdMiddleware } from './middleware'
 
 export function createApp() {
@@ -14,6 +15,7 @@ export function createApp() {
     res.json({ status: 'ok' })
   })
 
+  app.use(publicRouter)
   app.use(authMiddleware)
   app.use(router)
 
