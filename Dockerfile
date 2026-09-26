@@ -19,7 +19,10 @@ RUN npm ci
 COPY . .
 
 RUN openssl version
-RUN npx prisma generate
+RUN rm -rf /app/node_modules/.prisma /app/node_modules/@prisma/client
+RUN npm install --workspace @prisma/client --ignore-scripts
+RUN npx prisma generate --schema=./prisma/schema.prisma
+RUN ls -l /app/node_modules/.prisma/client/libquery_engine-*.so.node
 RUN test -f /app/node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node
 RUN npm run build --workspace @naeos-crm/audit
 RUN npm run build --workspace @naeos-crm/auth
