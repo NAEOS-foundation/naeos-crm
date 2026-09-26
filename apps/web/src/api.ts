@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 export interface Actor {
   id: string
@@ -13,6 +13,7 @@ export class ApiError extends Error {
     super(message)
     this.status = status
     this.code = code
+    Object.setPrototypeOf(this, ApiError.prototype)
   }
 }
 
