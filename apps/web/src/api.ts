@@ -17,34 +17,6 @@ export class ApiError extends Error {
   }
 }
 
-let authToken: string | null = null
-let devActor: Actor | null = null
-
-export function setAuthToken(token: string | null) {
-  authToken = token
-}
-
-export function setDevActor(actor: Actor | null) {
-  devActor = actor
-}
-
-export function initSession(): Actor | null {
-  if (typeof localStorage === 'undefined') return null
-  let actor: Actor | null = null
-  const actorRaw = localStorage.getItem('naeos-actor')
-  if (actorRaw) {
-    try {
-      actor = JSON.parse(actorRaw) as Actor
-    } catch {
-      actor = null
-    }
-  }
-  const token = localStorage.getItem('naeos-token')
-  authToken = token
-  devActor = token ? null : actor
-  return actor
-}
-
 interface RequestOptions {
   method?: string
   body?: unknown
@@ -57,21 +29,14 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     ...options.headers,
   }
 
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`
-  } else if (devActor) {
-    headers['x-naeos-dev-user'] = JSON.stringify(devActor)
-  }
-
   const response = await fetch(`${API_BASE}${path}`, {
     method: options.method ?? 'GET',
     headers,
+    credentials: 'include',
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   })
 
-  if (response.status === 204) {
-    return undefined as T
-  }
+  if (response.status === 204) return undefined as T
 
   let payload: unknown = null
   try {
@@ -90,13 +55,4 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
 
   return payload as T
-}
-
-export interface Paginated<T> {
-  data: T[]
-  meta: {
-    total: number
-    limit: number
-    offset: number
-  }
 }
