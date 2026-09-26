@@ -19,5 +19,11 @@
   },
   "observability": {
     "enabled": true
+  },
+  "exports": {
+    "NAEOSCRMContainer": {
+      "type": "durable-object",
+      "state": "deleted"
+    }
   }
 }
