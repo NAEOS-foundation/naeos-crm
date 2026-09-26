@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Router } from 'express'
-import { PrismaActivityReadPort, PrismaAuditSink, PrismaCompanyReadPort, PrismaContactReadPort, PrismaLeadReadPort } from './prisma-ports'
+import { PrismaActivityReadPort, PrismaAuditSink, PrismaCompanyReadPort, PrismaContactReadPort, PrismaLeadReadPort, prisma } from './prisma-ports'
 import { AuditService } from '@naeos-crm/audit'
 import { asyncHandler } from './middleware'
 import { buildErrorResponse, buildSuccessMeta } from '@naeos-crm/shared'
@@ -54,49 +54,61 @@ publicRouter.post('/api/v1/public/assessment-intake', asyncHandler(async (req, r
     return
   }
 
-  const company = await companyPort.create({
-    name: input.company,
-    industry: 'AI Engineering',
-    region: undefined,
-    status: 'PENDING',
-    ownerId: undefined,
-  })
+  const { company, contact, lead, activity } = await prisma.$transaction(async (tx) => {
+    const companyRecord = await tx.company.create({
+      data: {
+        name: input.company,
+        industry: 'AI Engineering',
+        status: 'PENDING',
+      },
+    })
 
-  const contact = await contactPort.create({
-    companyId: company.id,
-    fullName: input.name,
-    email: input.email,
-    role: 'Assessment Contact',
-    status: 'PENDING',
-  })
+    const contactRecord = await tx.contact.create({
+      data: {
+        companyId: companyRecord.id,
+        fullName: input.name,
+        email: input.email,
+        role: 'Assessment Contact',
+        status: 'PENDING',
+      },
+    })
 
-  const lead = await leadPort.create({
-    companyId: company.id,
-    source: 'NAEOS Website — AI Engineering Governance Assessment',
-    status: 'NEW',
-    ownerId: undefined,
-    score: undefined,
-  })
+    const leadRecord = await tx.lead.create({
+      data: {
+        companyId: companyRecord.id,
+        source: 'NAEOS Website — AI Engineering Governance Assessment',
+        status: 'NEW',
+      },
+    })
 
-  const details = [
-    `Name: ${input.name}`,
-    `Email: ${input.email}`,
-    `Company: ${input.company}`,
-    input.agents && `Agents: ${input.agents}`,
-    input.workflows && `Workflows: ${input.workflows}`,
-    input.controls && `Existing controls: ${input.controls}`,
-    input.risk && `Highest-risk actions: ${input.risk}`,
-    input.goals && `30-day goals: ${input.goals}`,
-  ].filter(Boolean).join('\\n')
+    const details = [
+      `Name: ${input.name}`,
+      `Email: ${input.email}`,
+      `Company: ${input.company}`,
+      input.agents && `Agents: ${input.agents}`,
+      input.workflows && `Workflows: ${input.workflows}`,
+      input.controls && `Existing controls: ${input.controls}`,
+      input.risk && `Highest-risk actions: ${input.risk}`,
+      input.goals && `30-day goals: ${input.goals}`,
+    ].filter(Boolean).join('\\n')
 
-  const activity = await activityPort.create({
-    companyId: company.id,
-    contactId: contact.id,
-    type: 'EMAIL',
-    channel: 'website',
-    summary: `AI Engineering Governance Assessment request\\n\\n${details}`,
-    occurredAt: new Date(),
-    ownerId: undefined,
+    const activityRecord = await tx.activity.create({
+      data: {
+        companyId: companyRecord.id,
+        contactId: contactRecord.id,
+        type: 'EMAIL',
+        channel: 'website',
+        summary: `AI Engineering Governance Assessment request\\n\\n${details}`,
+        occurredAt: new Date(),
+      },
+    })
+
+    return {
+      company: companyRecord,
+      contact: contactRecord,
+      lead: leadRecord,
+      activity: activityRecord,
+    }
   })
 
   await audit.record({
