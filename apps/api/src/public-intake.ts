@@ -85,7 +85,7 @@ publicRouter.post('/api/v1/public/assessment-intake', asyncHandler(async (req, r
       input.controls && `Existing controls: ${input.controls}`,
       input.risk && `Highest-risk actions: ${input.risk}`,
       input.goals && `30-day goals: ${input.goals}`,
-    ].filter(Boolean).join('\\n')
+    ].filter(Boolean).join('\n')
 
     const activityRecord = await tx.activity.create({
       data: {
@@ -93,7 +93,7 @@ publicRouter.post('/api/v1/public/assessment-intake', asyncHandler(async (req, r
         contactId: contactRecord.id,
         type: 'EMAIL',
         channel: 'website',
-        summary: `AI Engineering Governance Assessment request\\n\\n${details}`,
+        summary: `AI Engineering Governance Assessment request\n\n${details}`,
         occurredAt: new Date(),
       },
     })
