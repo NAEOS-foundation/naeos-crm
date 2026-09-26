@@ -18,7 +18,9 @@ RUN npm ci
 
 COPY . .
 
+RUN openssl version
 RUN npx prisma generate
+RUN test -f /app/node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node
 RUN npm run build --workspace @naeos-crm/audit
 RUN npm run build --workspace @naeos-crm/auth
 RUN npm run build --workspace @naeos-crm/domain
@@ -26,6 +28,7 @@ RUN npm run build --workspace @naeos-crm/shared
 RUN npm run build --workspace @naeos-crm/api
 
 ENV NODE_ENV=production
+ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node
 ENV PORT=3000
 
 EXPOSE 3000
