@@ -8,6 +8,13 @@ export interface AuditEvent {
   entityType: string
   entityId: string
   requestId?: string
+  correlationId?: string
+  causationId?: string
+  eventVersion?: string
+  schemaVersion?: string
+  executionId?: string
+  provider?: string
+  providerRequestId?: string
   source?: string
   result: AuditResult
   reason?: string
