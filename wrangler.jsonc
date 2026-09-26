@@ -13,5 +13,13 @@
   },
   "observability": {
     "enabled": true
-  }
+  },
+  "migrations": [
+    {
+      "tag": "v2",
+      "deleted_classes": [
+        "NAEOSCRMContainer"
+      ]
+    }
+  ]
 }
