@@ -16,7 +16,7 @@
     "db:seed": "prisma db seed"
   },
   "prisma": {
-    "seed": "node --loader ts-node/esm prisma/seed.ts"
+    "seed": "npx --yes tsx@4.20.5 prisma/seed.ts"
   },
   "devDependencies": {
     "eslint-plugin-react-hooks": "^7.1.1",
