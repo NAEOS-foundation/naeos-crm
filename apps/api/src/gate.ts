@@ -195,7 +195,7 @@ export class GoGateService {
       actionType: request.actionType,
       target: request.target,
       payload: request.payload ?? null,
-      idempotencyKey: request.idempotencyKey,
+      idempotencyKey: request.idempotencyKey ?? request.id,
       executionId: request.executionId,
       executionAttempt: request.executionAttempt,
       policyDecisionId: request.policyDecisionId ?? null,
@@ -205,7 +205,7 @@ export class GoGateService {
     const receiptPayload = {
       goGateRequestId: request.id,
       executionId: request.executionId!,
-      idempotencyKey: request.idempotencyKey,
+      idempotencyKey: request.idempotencyKey ?? request.id,
       policyDecisionId: request.policyDecisionId ?? null,
       policyVersion: request.policyVersion ?? null,
       provider: request.provider ?? null,
