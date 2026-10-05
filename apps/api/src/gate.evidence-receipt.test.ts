@@ -20,7 +20,7 @@ function request(overrides: Partial<GoGateRequest> = {}): GoGateRequest {
     reason: 'allowed',
     requestedBy: 'user-1',
     approvedBy: 'user-2',
-    expiresAt: new Date('2026-10-05T09:00:00.000Z'),
+    expiresAt: new Date('2099-01-01T00:00:00.000Z'),
     executedAt: null,
     verifiedAt: null,
     providerResponse: null,
