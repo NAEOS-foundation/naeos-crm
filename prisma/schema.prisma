@@ -159,6 +159,12 @@ enum AuditResult {
   FAILURE
 }
 
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -511,6 +517,7 @@ model PolicyDecision {
   createdAt            DateTime @default(now())
 
   goGateRequests GoGateRequest[]
+  evidenceReceipts EvidenceReceipt[]
 
   @@index([policyVersion])
   @@index([resource, action])
@@ -539,6 +546,7 @@ model GoGateRequest {
   executionAttempt  Int                @default(0)
   policyDecisionId  String?
   policyDecision    PolicyDecision?    @relation(fields: [policyDecisionId], references: [id], onDelete: SetNull)
+  evidenceReceipt   EvidenceReceipt?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
@@ -548,4 +556,31 @@ model GoGateRequest {
   @@index([executionId])
   @@index([provider, providerRequestId])
   @@index([createdAt])
+}
+
+model EvidenceReceipt {
+  id                    String             @id @default(cuid())
+  goGateRequestId       String             @unique
+  executionId           String
+  idempotencyKey        String
+  policyDecisionId      String?
+  policyVersion         String?
+  provider              String?
+  providerRequestId     String?
+  requestDigest         String
+  providerResponseDigest String?
+  verificationStatus    VerificationStatus @default(PENDING)
+  verifiedAt            DateTime?
+  verifierVersion       String             @default("evidence-v1")
+  receiptHash           String             @unique
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  goGateRequest  GoGateRequest  @relation(fields: [goGateRequestId], references: [id], onDelete: Cascade)
+  policyDecision PolicyDecision? @relation(fields: [policyDecisionId], references: [id], onDelete: SetNull)
+
+  @@index([executionId])
+  @@index([idempotencyKey])
+  @@index([policyDecisionId])
+  @@index([verificationStatus])
 }

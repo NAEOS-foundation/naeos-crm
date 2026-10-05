@@ -285,6 +285,7 @@ export const createGoGateRequestSchema = z.object({
   actionType: z.enum(['SEND_EMAIL', 'SEND_MESSAGE', 'PUBLISH_POST', 'CONTACT_PROSPECT', 'CREATE_ISSUE', 'TRIGGER_WORKFLOW', 'MODIFY_EXTERNAL_SYSTEM']),
   target: z.string().min(1),
   payload: z.record(z.string(), z.unknown()).optional(),
+  idempotencyKey: z.string().min(1).max(255).optional(),
 })
 
 export const goGateQuerySchema = z.object({

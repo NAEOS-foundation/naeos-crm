@@ -11,6 +11,8 @@ import type {
   FollowUp,
   FollowUpAnalyticsSummary,
   GoGateRequest,
+  EvidenceReceipt,
+  PolicyDecision,
   Investor,
   Lead,
   Opportunity,
@@ -194,10 +196,20 @@ export interface PolicyRuleReadPort {
 
 export interface GoGateRequestReadPort {
   findById(id: string): Promise<GoGateRequest | null>
+  findByIdempotencyKey?(idempotencyKey: string): Promise<GoGateRequest | null>
   list(params?: { status?: GoGateRequest['status']; actionType?: GoGateRequest['actionType'] } & PageQuery): Promise<{ data: GoGateRequest[]; total: number }>
   create(input: Omit<GoGateRequest, 'id' | 'createdAt' | 'updatedAt'>): Promise<GoGateRequest>
   update(id: string, input: Partial<GoGateRequest>): Promise<GoGateRequest | null>
   transition(id: string, expectedStatus: GoGateRequest['status'], input: Partial<GoGateRequest>, expiresAfter?: Date): Promise<GoGateRequest | null>
+}
+
+export interface PolicyDecisionWritePort {
+  create(input: Omit<PolicyDecision, 'id' | 'createdAt' | 'evaluatedAt'> & { evaluatedAt?: Date }): Promise<PolicyDecision>
+}
+
+export interface EvidenceReceiptWritePort {
+  findByGoGateRequestId(goGateRequestId: string): Promise<EvidenceReceipt | null>
+  create(input: Omit<EvidenceReceipt, 'id' | 'createdAt' | 'updatedAt'>): Promise<EvidenceReceipt>
 }
 
 export interface PipelineAnalyticsReadPort {

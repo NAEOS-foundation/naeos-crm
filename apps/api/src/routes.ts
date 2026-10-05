@@ -51,6 +51,8 @@ import {
   PrismaPartnerReadPort,
   PrismaPipelineAnalyticsReadPort,
   PrismaPipelineStageReadPort,
+  PrismaPolicyDecisionWritePort,
+  PrismaEvidenceReceiptWritePort,
   PrismaPolicyRuleReadPort,
   PrismaTaskReadPort,
   PrismaUseCaseReadPort,
@@ -163,6 +165,8 @@ const goGateService = new GoGateService(
     MODIFY_EXTERNAL_SYSTEM: new GitHubAdapter(),
   },
   auditService,
+  new PrismaPolicyDecisionWritePort(),
+  new PrismaEvidenceReceiptWritePort(),
 )
 const goGateFacade = new GoGateFacade(goGateService)
 
@@ -1250,10 +1254,18 @@ router.post('/api/v1/go-gate', asyncHandler(async (req, res) => {
     actionType: input.actionType,
     target: input.target,
     payload: input.payload,
+    idempotencyKey: input.idempotencyKey,
     requester: { id: req.actor?.id ?? 'unknown', roles: toPolicyRoles(req.actor?.roles ?? []) },
     meta: { requestId: req.requestId, source: 'api' },
   })
   res.status(201).json({ data: request, meta: buildSuccessMeta(req.requestId) })
+}))
+
+router.get('/api/v1/go-gate/:id/evidence-receipt', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const receipt = await goGateFacade.getEvidenceReceipt(id)
+  res.json({ data: receipt, meta: buildSuccessMeta(req.requestId) })
 }))
 
 router.get('/api/v1/go-gate/:id', asyncHandler(async (req, res) => {
