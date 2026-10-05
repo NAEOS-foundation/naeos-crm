@@ -63,6 +63,12 @@ const rateLimitMax = Number(process.env.RATE_LIMIT_MAX ?? 120)
 const rateBuckets = new Map<string, { startedAt: number; count: number }>()
 
 export function rateLimitMiddleware(req: Request, res: Response, next: NextFunction) {
+  // Integration tests exercise many API calls from one loopback client; keep the
+  // production traffic guard out of the test harness so it cannot create false failures.
+  if (process.env.NODE_ENV === 'test' || req.path === '/health' || req.path === '/ready') {
+    return next()
+  }
+
   const now = Date.now()
   const key = req.ip || req.socket.remoteAddress || 'unknown'
   const bucket = rateBuckets.get(key)
