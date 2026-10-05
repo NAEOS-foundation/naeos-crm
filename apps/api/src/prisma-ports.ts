@@ -13,6 +13,7 @@ import type {
   Contributor,
   DashboardSummary,
   EvidenceReceipt,
+  OutboxEvent,
   PolicyDecision,
   FollowUp,
   FollowUpAnalyticsSummary,
@@ -53,6 +54,7 @@ import type {
   TaskReadPort,
   UseCaseReadPort,
   EvidenceReceiptWritePort,
+  OutboxEventPort,
   UserReadPort,
 } from './domain-interfaces'
 import { conflict, HttpError, invalidReference } from './errors'
@@ -1731,10 +1733,124 @@ export class PrismaEvidenceReceiptWritePort implements EvidenceReceiptWritePort 
   }
 
   async create(input: Omit<EvidenceReceipt, 'id' | 'createdAt' | 'updatedAt'>): Promise<EvidenceReceipt> {
-    const receipt = await prisma.evidenceReceipt.create({ data: input as any })
+    const receipt = await prisma.$transaction(async (tx) => {
+      const created = await tx.evidenceReceipt.create({ data: input as any })
+      await tx.outboxEvent.create({
+        data: {
+          aggregateType: 'evidence-receipt',
+          aggregateId: created.id,
+          eventType: 'evidence-receipt.created',
+          schemaVersion: '1',
+          payload: created as unknown as Prisma.InputJsonValue,
+          idempotencyKey: `evidence-receipt:${created.id}`,
+        },
+      })
+      return created
+    })
     return normalizeEvidenceReceipt(receipt)
   }
 }
+
+const normalizeOutboxEvent = (event: any): OutboxEvent => ({
+  id: event.id,
+  aggregateType: event.aggregateType,
+  aggregateId: event.aggregateId,
+  eventType: event.eventType,
+  schemaVersion: event.schemaVersion,
+  payload: event.payload as Record<string, unknown>,
+  status: event.status,
+  attempts: event.attempts,
+  availableAt: event.availableAt,
+  lockedAt: event.lockedAt ?? null,
+  lockedBy: event.lockedBy ?? null,
+  lastError: event.lastError ?? null,
+  idempotencyKey: event.idempotencyKey,
+  createdAt: event.createdAt,
+  updatedAt: event.updatedAt,
+})
+
+export class PrismaOutboxEventPort implements OutboxEventPort {
+  async enqueue(input: Omit<OutboxEvent, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'attempts'> & Partial<Pick<OutboxEvent, 'status' | 'attempts'>>): Promise<OutboxEvent> {
+    try {
+      const event = await prisma.outboxEvent.create({
+        data: {
+          aggregateType: input.aggregateType,
+          aggregateId: input.aggregateId,
+          eventType: input.eventType,
+          schemaVersion: input.schemaVersion,
+          payload: input.payload as Prisma.InputJsonValue,
+          status: input.status ?? 'PENDING',
+          attempts: input.attempts ?? 0,
+          availableAt: input.availableAt,
+          lockedAt: input.lockedAt ?? null,
+          lockedBy: input.lockedBy ?? null,
+          lastError: input.lastError ?? null,
+          idempotencyKey: input.idempotencyKey,
+        },
+      })
+      return normalizeOutboxEvent(event)
+    } catch (err) {
+      throw translatePrismaError(err)
+    }
+  }
+
+  async claimNext(workerId: string, leaseMs: number): Promise<OutboxEvent | null> {
+    const now = new Date()
+    return prisma.$transaction(async (tx) => {
+      const leaseCutoff = new Date(now.getTime() - leaseMs)
+      await tx.outboxEvent.updateMany({
+        where: { status: 'PROCESSING', lockedAt: { lt: leaseCutoff } },
+        data: { status: 'PENDING', lockedAt: null, lockedBy: null, updatedAt: now },
+      })
+
+      const candidate = await tx.outboxEvent.findFirst({
+        where: { status: 'PENDING', availableAt: { lte: now } },
+        orderBy: [{ availableAt: 'asc' }, { createdAt: 'asc' }],
+      })
+      if (!candidate) return null
+
+      const claimed = await tx.outboxEvent.updateMany({
+        where: { id: candidate.id, status: 'PENDING' },
+        data: {
+          status: 'PROCESSING',
+          attempts: { increment: 1 },
+          lockedAt: now,
+          lockedBy: workerId,
+          updatedAt: now,
+        },
+      })
+      if (claimed.count !== 1) return null
+
+      const event = await tx.outboxEvent.findUnique({ where: { id: candidate.id } })
+      return event ? normalizeOutboxEvent(event) : null
+    })
+  }
+
+  async markSucceeded(id: string, workerId: string): Promise<boolean> {
+    const result = await prisma.outboxEvent.updateMany({
+      where: { id, status: 'PROCESSING', lockedBy: workerId },
+      data: { status: 'SUCCEEDED', lockedAt: null, lockedBy: null, lastError: null, updatedAt: new Date() },
+    })
+    return result.count === 1
+  }
+
+  async markRetry(id: string, workerId: string, availableAt: Date, error: string): Promise<boolean> {
+    const result = await prisma.outboxEvent.updateMany({
+      where: { id, status: 'PROCESSING', lockedBy: workerId },
+      data: { status: 'PENDING', availableAt, lockedAt: null, lockedBy: null, lastError: error, updatedAt: new Date() },
+    })
+    return result.count === 1
+  }
+
+  async markFailed(id: string, workerId: string, error: string): Promise<boolean> {
+    const result = await prisma.outboxEvent.updateMany({
+      where: { id, status: 'PROCESSING', lockedBy: workerId },
+      data: { status: 'FAILED', lockedAt: null, lockedBy: null, lastError: error, updatedAt: new Date() },
+    })
+    return result.count === 1
+  }
+}
+
 
 export class PrismaGoGateRequestReadPort implements GoGateRequestReadPort {
   async findById(id: string): Promise<GoGateRequest | null> {
