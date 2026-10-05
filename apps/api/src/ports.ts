@@ -1,5 +1,5 @@
 export interface ExternalActionPort {
-  execute(input: Record<string, unknown>): Promise<{ ok: boolean; providerResponse?: unknown }>
+  execute(input: Record<string, unknown>): Promise<{ ok: boolean; providerResponse?: unknown; provider?: string; providerRequestId?: string }>
 }
 
 export interface PolicyPort {
