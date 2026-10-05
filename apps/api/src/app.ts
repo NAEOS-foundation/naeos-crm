@@ -3,6 +3,7 @@ import cors from 'cors'
 import { router } from './routes'
 import { publicRouter } from './public-intake'
 import { authRouter } from './auth-routes'
+import { outboxObservabilityRouter } from './outbox-observability'
 import { authMiddleware, errorHandler, requestIdMiddleware, securityHeadersMiddleware, rateLimitMiddleware } from './middleware'
 import { prisma } from './prisma-ports'
 
@@ -47,6 +48,7 @@ export function createApp() {
   app.use(publicRouter)
   app.use(authRouter)
   app.use(authMiddleware)
+  app.use(outboxObservabilityRouter)
   app.use(router)
   app.use(errorHandler)
 
