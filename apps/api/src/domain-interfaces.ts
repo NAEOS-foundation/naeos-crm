@@ -196,7 +196,7 @@ export interface PolicyRuleReadPort {
 
 export interface GoGateRequestReadPort {
   findById(id: string): Promise<GoGateRequest | null>
-  findByIdempotencyKey(idempotencyKey: string): Promise<GoGateRequest | null>
+  findByIdempotencyKey?(idempotencyKey: string): Promise<GoGateRequest | null>
   list(params?: { status?: GoGateRequest['status']; actionType?: GoGateRequest['actionType'] } & PageQuery): Promise<{ data: GoGateRequest[]; total: number }>
   create(input: Omit<GoGateRequest, 'id' | 'createdAt' | 'updatedAt'>): Promise<GoGateRequest>
   update(id: string, input: Partial<GoGateRequest>): Promise<GoGateRequest | null>
