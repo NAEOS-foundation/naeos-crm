@@ -19,6 +19,7 @@ export type InvestorType = 'ANGEL' | 'SEED' | 'VENTURE' | 'STRATEGIC' | 'OTHER'
 export type PolicyEffect = 'ALLOW' | 'DENY'
 export type GoGateStatus = 'READY' | 'WAITING_FOR_GO' | 'APPROVED' | 'EXECUTING' | 'EXECUTED' | 'FAILED' | 'EXPIRED' | 'REJECTED'
 export type VerificationStatus = 'PENDING' | 'VERIFIED' | 'FAILED'
+export type OutboxStatus = 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED'
 
 export type GoGateActionType =
   | 'SEND_EMAIL'
@@ -279,6 +280,24 @@ export interface PolicyDecision {
   evaluatorVersion: string
   evaluatedAt: Date
   createdAt: Date
+}
+
+export interface OutboxEvent {
+  id: string
+  aggregateType: string
+  aggregateId: string
+  eventType: string
+  schemaVersion: string
+  payload: Record<string, unknown>
+  status: OutboxStatus
+  attempts: number
+  availableAt: Date
+  lockedAt?: Date | null
+  lockedBy?: string | null
+  lastError?: string | null
+  idempotencyKey: string
+  createdAt: Date
+  updatedAt: Date
 }
 
 export interface EvidenceReceipt {
