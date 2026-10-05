@@ -12,6 +12,7 @@ import type {
   FollowUpAnalyticsSummary,
   GoGateRequest,
   EvidenceReceipt,
+  OutboxEvent,
   PolicyDecision,
   Investor,
   Lead,
@@ -210,6 +211,14 @@ export interface PolicyDecisionWritePort {
 export interface EvidenceReceiptWritePort {
   findByGoGateRequestId(goGateRequestId: string): Promise<EvidenceReceipt | null>
   create(input: Omit<EvidenceReceipt, 'id' | 'createdAt' | 'updatedAt'>): Promise<EvidenceReceipt>
+}
+
+export interface OutboxEventPort {
+  enqueue(input: Omit<OutboxEvent, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'attempts'> & Partial<Pick<OutboxEvent, 'status' | 'attempts'>>): Promise<OutboxEvent>
+  claimNext(workerId: string, leaseMs: number): Promise<OutboxEvent | null>
+  markSucceeded(id: string, workerId: string): Promise<boolean>
+  markRetry(id: string, workerId: string, availableAt: Date, error: string): Promise<boolean>
+  markFailed(id: string, workerId: string, error: string): Promise<boolean>
 }
 
 export interface PipelineAnalyticsReadPort {
