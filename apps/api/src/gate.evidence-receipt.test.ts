@@ -198,6 +198,32 @@ describe('GoGateService evidence receipt V1', () => {
     })
   })
 
+  it('produces deterministic request, provider-response, and receipt digests for identical inputs', async () => {
+    const first = harness()
+    const second = harness()
+
+    await first.service.execute('gate-1', actor, { requestId: 'req-deterministic', source: 'test' })
+    await second.service.execute('gate-1', actor, { requestId: 'req-deterministic', source: 'test' })
+
+    expect(first.createdReceipts[0]).toMatchObject({
+      requestDigest: second.createdReceipts[0].requestDigest,
+      providerResponseDigest: second.createdReceipts[0].providerResponseDigest,
+      receiptHash: second.createdReceipts[0].receiptHash,
+    })
+  })
+
+  it('retrieves a stored evidence receipt and returns not-found when it does not exist', async () => {
+    const h = harness()
+
+    await h.service.execute('gate-1', actor, { requestId: 'req-retrieve', source: 'test' })
+
+    await expect(h.service.getEvidenceReceipt('gate-1')).resolves.toEqual(h.createdReceipts[0])
+
+    const missing = harness()
+    await expect(missing.service.getEvidenceReceipt('missing-gate'))
+      .rejects.toMatchObject({ code: 'EVIDENCE_RECEIPT_NOT_FOUND' })
+  })
+
   it('creates a FAILED receipt when the provider returns ok=false', async () => {
     const h = harness({
       action: {
