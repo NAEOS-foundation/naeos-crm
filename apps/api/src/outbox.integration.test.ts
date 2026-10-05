@@ -30,7 +30,6 @@ describe('Outbox V1 database integration', () => {
     const outbox = new PrismaOutboxEventPort()
 
     await requests.create({
-      id: goGateRequestId,
       actionType: 'CREATE_ISSUE',
       target: 'integration-test',
       payload: { test: true, suffix },
@@ -116,7 +115,6 @@ describe('Outbox V1 database integration', () => {
     const handlerIdempotency = `${idempotencyKey}-handler`
 
     await requests.create({
-      id: requestId,
       actionType: 'CREATE_ISSUE',
       target: 'integration-test',
       payload: { handler: true, suffix },
