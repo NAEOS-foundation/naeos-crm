@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { AuditService } from '@naeos-crm/audit'
+import { AuditService, type AuditEvent } from '@naeos-crm/audit'
 import type { EvidenceReceipt, GoGateRequest, PolicyDecision } from '@naeos-crm/domain'
 
 import type { EvidenceReceiptWritePort, GoGateRequestReadPort, PolicyDecisionWritePort } from './domain-interfaces'
@@ -125,7 +125,7 @@ function harness(options: {
     },
   }
 
-  const auditSink = { append: vi.fn(async () => undefined) }
+  const auditSink = { append: vi.fn<(event: AuditEvent) => Promise<void>>(async () => undefined) }
   const audit = new AuditService(auditSink)
   const action = options.action ?? {
     execute: async () => ({
@@ -187,7 +187,7 @@ describe('GoGateService evidence receipt V1', () => {
     expect(h.createdReceipts[0].providerResponseDigest).toMatch(/^[a-f0-9]{64}$/)
     expect(h.createdReceipts[0].receiptHash).toMatch(/^[a-f0-9]{64}$/)
 
-    const receiptAudit = h.auditSink.append.mock.calls.find((call) => (call[0] as { action?: string }).action === 'go-gate.evidence-receipt.created')
+    const receiptAudit = h.auditSink.append.mock.calls.find(([event]) => event.action === 'go-gate.evidence-receipt.created')
     expect(receiptAudit?.[0]).toMatchObject({
       entityType: 'evidence-receipt',
       entityId: 'receipt-1',
