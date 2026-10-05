@@ -51,6 +51,7 @@ export class GoGateService {
   }
 
   async getEvidenceReceipt(id: string) {
+    if (!this.evidenceReceipts) throw notFound('EVIDENCE_RECEIPT_NOT_FOUND', 'Evidence receipt store is not configured')
     const receipt = await this.evidenceReceipts.findByGoGateRequestId(id)
     if (!receipt) throw notFound('EVIDENCE_RECEIPT_NOT_FOUND', 'Evidence receipt not found')
     return receipt
