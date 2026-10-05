@@ -11,7 +11,6 @@ export interface AuditEvent {
   correlationId?: string
   causationId?: string
   eventVersion?: string
-  schemaVersion?: string
   executionId?: string
   provider?: string
   providerRequestId?: string
