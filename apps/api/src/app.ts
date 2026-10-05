@@ -3,7 +3,8 @@ import cors from 'cors'
 import { router } from './routes'
 import { publicRouter } from './public-intake'
 import { authRouter } from './auth-routes'
-import { authMiddleware, errorHandler, requestIdMiddleware } from './middleware'
+import { authMiddleware, errorHandler, requestIdMiddleware, securityHeadersMiddleware, rateLimitMiddleware } from './middleware'
+import { prisma } from './prisma-ports'
 
 export function createApp() {
   const app = express()
@@ -15,6 +16,10 @@ export function createApp() {
       .filter(Boolean),
   )
 
+  app.use(securityHeadersMiddleware)
+  app.use(requestIdMiddleware)
+  app.use(rateLimitMiddleware)
+
   app.use(cors({
     origin: (origin, callback) => {
       if (!origin || allowedOrigins.has(origin)) {
@@ -25,10 +30,18 @@ export function createApp() {
     },
   }))
   app.use(express.json({ limit: '1mb' }))
-  app.use(requestIdMiddleware)
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' })
+  })
+
+  app.get('/ready', async (_req, res, next) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`
+      res.json({ status: 'ready', database: 'ok' })
+    } catch (error) {
+      next(error)
+    }
   })
 
   app.use(publicRouter)
