@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import type { EvidenceReceipt } from '@naeos-crm/domain'
+import type { OutboxDispatchContext } from './outbox'
 import {
   PrismaEvidenceReceiptWritePort,
   PrismaGoGateRequestReadPort,
@@ -16,9 +17,10 @@ describe('Outbox V1 database integration', () => {
   const executionId = `exec-${suffix}`
 
   afterAll(async () => {
-    await prisma.outboxEvent.deleteMany({ where: { aggregateId: { in: [`receipt-${suffix}`] } } })
-    await prisma.evidenceReceipt.deleteMany({ where: { goGateRequestId: goGateRequestId } })
-    await prisma.goGateRequest.deleteMany({ where: { id: goGateRequestId } })
+    const receiptsToClean = await prisma.evidenceReceipt.findMany({ where: { goGateRequestId: { startsWith: goGateRequestId } }, select: { id: true } })
+    await prisma.outboxEvent.deleteMany({ where: { aggregateId: { in: receiptsToClean.map(({ id }) => id) } } })
+    await prisma.evidenceReceipt.deleteMany({ where: { goGateRequestId: { startsWith: goGateRequestId } } })
+    await prisma.goGateRequest.deleteMany({ where: { id: { startsWith: goGateRequestId } } })
     await prisma.$disconnect()
   })
 
@@ -79,7 +81,7 @@ describe('Outbox V1 database integration', () => {
     })
 
     const processedEvents: string[] = []
-    const handler = async ({ event }: { event: { id: string } }) => {
+    const handler = async ({ event }: OutboxDispatchContext) => {
       processedEvents.push(event.id)
     }
     const dispatcher = new OutboxDispatcher(
