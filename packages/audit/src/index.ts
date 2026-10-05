@@ -23,6 +23,10 @@ export interface AuditEvent {
   newState?: Record<string, unknown>
   authorization?: Record<string, unknown>
   createdAt: Date
+  sequence?: number
+  schemaVersion?: string
+  previousEventHash?: string
+  eventHash?: string
 }
 
 export interface AuditSink {
