@@ -81,6 +81,8 @@ export class GoGateService {
       action: input.actionType,
       roles: input.requester.roles,
     })
+    const idempotencyKey = input.idempotencyKey ?? `go-${Date.now()}-${digest({ actionType: input.actionType, target: input.target, payload: input.payload ?? null }).slice(0, 16)}`
+
     const policyDecision = await this.policyDecisions.create({
       decision: policy.allow ? 'ALLOW' : 'DENY',
       policyVersion: policy.policyVersion ?? POLICY_VERSION,
@@ -101,7 +103,7 @@ export class GoGateService {
       policyVersion: policy.policyVersion ?? POLICY_VERSION,
       reason: input.reason ?? policy.reason,
       requestedBy: input.requester.id,
-      idempotencyKey: input.idempotencyKey ?? '',
+      idempotencyKey,
       executionAttempt: 0,
       policyDecisionId: policyDecision.id,
     })
