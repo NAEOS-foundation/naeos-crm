@@ -1261,6 +1261,13 @@ router.post('/api/v1/go-gate', asyncHandler(async (req, res) => {
   res.status(201).json({ data: request, meta: buildSuccessMeta(req.requestId) })
 }))
 
+router.get('/api/v1/go-gate/:id/evidence-receipt', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'go-gate', 'read'))) return
+  const { id } = idParamSchema.parse(req.params)
+  const receipt = await goGateFacade.getEvidenceReceipt(id)
+  res.json({ data: receipt, meta: buildSuccessMeta(req.requestId) })
+}))
+
 router.get('/api/v1/go-gate/:id', asyncHandler(async (req, res) => {
   if (!(await requireAuth(req, res, 'go-gate', 'read'))) return
   const { id } = idParamSchema.parse(req.params)
