@@ -49,14 +49,14 @@ describe('Outbox V1 database integration', () => {
       provider: 'integration',
       providerRequestId: `provider-${suffix}`,
       executionAttempt: 1,
-      policyDecisionId: null,
+      policyDecisionId: undefined,
     })
 
     const receipt: EvidenceReceipt = await receipts.create({
       goGateRequestId,
       executionId,
       idempotencyKey,
-      policyDecisionId: null,
+      policyDecisionId: undefined,
       policyVersion: 'v1',
       provider: 'integration',
       providerRequestId: `provider-${suffix}`,
@@ -135,14 +135,14 @@ describe('Outbox V1 database integration', () => {
       provider: 'integration',
       providerRequestId: `provider-${suffix}-handler`,
       executionAttempt: 1,
-      policyDecisionId: null,
+      policyDecisionId: undefined,
     })
 
     const receipt = await receipts.create({
       goGateRequestId: requestId,
       executionId: `${executionId}-handler`,
       idempotencyKey: handlerIdempotency,
-      policyDecisionId: null,
+      policyDecisionId: undefined,
       policyVersion: 'v1',
       provider: 'integration',
       providerRequestId: `provider-${suffix}-handler`,
