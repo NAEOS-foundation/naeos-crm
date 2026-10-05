@@ -39,8 +39,46 @@ export function asyncHandler(
   }
 }
 
-export function requestIdMiddleware(req: Request, _res: Response, next: NextFunction) {
-  req.requestId = (req.headers['x-request-id'] as string) || generateRequestId()
+export function requestIdMiddleware(req: Request, res: Response, next: NextFunction) {
+  const incoming = req.headers['x-request-id']
+  const requestId = typeof incoming === 'string' && /^[A-Za-z0-9._:-]{1,128}$/.test(incoming)
+    ? incoming
+    : generateRequestId()
+  req.requestId = requestId
+  res.setHeader('X-Request-Id', requestId)
+  next()
+}
+
+export function securityHeadersMiddleware(_req: Request, res: Response, next: NextFunction) {
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('Referrer-Policy', 'no-referrer')
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  if (isProduction()) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  next()
+}
+
+const rateWindowMs = 60_000
+const rateLimitMax = Number(process.env.RATE_LIMIT_MAX ?? 120)
+const rateBuckets = new Map<string, { startedAt: number; count: number }>()
+
+export function rateLimitMiddleware(req: Request, res: Response, next: NextFunction) {
+  const now = Date.now()
+  const key = req.ip || req.socket.remoteAddress || 'unknown'
+  const bucket = rateBuckets.get(key)
+  if (!bucket || now - bucket.startedAt >= rateWindowMs) {
+    rateBuckets.set(key, { startedAt: now, count: 1 })
+    res.setHeader('X-RateLimit-Limit', rateLimitMax)
+    return next()
+  }
+  bucket.count += 1
+  res.setHeader('X-RateLimit-Limit', rateLimitMax)
+  res.setHeader('X-RateLimit-Remaining', Math.max(0, rateLimitMax - bucket.count))
+  if (bucket.count > rateLimitMax) {
+    res.setHeader('Retry-After', '60')
+    res.status(429).json(buildErrorResponse('RATE_LIMITED', 'Too many requests', req.requestId))
+    return
+  }
   next()
 }
 
