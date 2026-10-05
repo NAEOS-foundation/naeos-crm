@@ -12,6 +12,8 @@ import type {
   Contact,
   Contributor,
   DashboardSummary,
+  EvidenceReceipt,
+  PolicyDecision,
   FollowUp,
   FollowUpAnalyticsSummary,
   GoGateRequest,
@@ -46,9 +48,11 @@ import type {
   PartnerReadPort,
   PipelineAnalyticsReadPort,
   PipelineStageReadPort,
+  PolicyDecisionWritePort,
   PolicyRuleReadPort,
   TaskReadPort,
   UseCaseReadPort,
+  EvidenceReceiptWritePort,
   UserReadPort,
 } from './domain-interfaces'
 import { conflict, HttpError, invalidReference } from './errors'
@@ -1212,6 +1216,40 @@ const normalizePolicyRule = (rule: any): PolicyRule => ({
   updatedAt: rule.updatedAt,
 })
 
+const normalizePolicyDecision = (decision: any): PolicyDecision => ({
+  id: decision.id,
+  decision: decision.decision,
+  policyVersion: decision.policyVersion,
+  matchedRuleId: decision.matchedRuleId ?? undefined,
+  matchedRulePriority: decision.matchedRulePriority ?? undefined,
+  resource: decision.resource,
+  action: decision.action,
+  role: decision.role ?? undefined,
+  reason: decision.reason,
+  evaluatorVersion: decision.evaluatorVersion,
+  evaluatedAt: decision.evaluatedAt,
+  createdAt: decision.createdAt,
+})
+
+const normalizeEvidenceReceipt = (receipt: any): EvidenceReceipt => ({
+  id: receipt.id,
+  goGateRequestId: receipt.goGateRequestId,
+  executionId: receipt.executionId,
+  idempotencyKey: receipt.idempotencyKey,
+  policyDecisionId: receipt.policyDecisionId ?? undefined,
+  policyVersion: receipt.policyVersion ?? undefined,
+  provider: receipt.provider ?? undefined,
+  providerRequestId: receipt.providerRequestId ?? undefined,
+  requestDigest: receipt.requestDigest,
+  providerResponseDigest: receipt.providerResponseDigest ?? undefined,
+  verificationStatus: receipt.verificationStatus,
+  verifiedAt: receipt.verifiedAt ?? undefined,
+  verifierVersion: receipt.verifierVersion,
+  receiptHash: receipt.receiptHash,
+  createdAt: receipt.createdAt,
+  updatedAt: receipt.updatedAt,
+})
+
 const normalizeGoGateRequest = (request: any): GoGateRequest => ({
   id: request.id,
   actionType: request.actionType,
@@ -1227,6 +1265,12 @@ const normalizeGoGateRequest = (request: any): GoGateRequest => ({
   verifiedAt: request.verifiedAt ?? undefined,
   providerResponse: (request.providerResponse as Record<string, unknown>) ?? undefined,
   result: request.result ?? undefined,
+  idempotencyKey: request.idempotencyKey,
+  executionId: request.executionId ?? undefined,
+  provider: request.provider ?? undefined,
+  providerRequestId: request.providerRequestId ?? undefined,
+  executionAttempt: request.executionAttempt ?? 0,
+  policyDecisionId: request.policyDecisionId ?? undefined,
   createdAt: request.createdAt,
   updatedAt: request.updatedAt,
 })
@@ -1660,9 +1704,46 @@ export class PrismaPolicyRuleReadPort implements PolicyRuleReadPort {
   }
 }
 
+export class PrismaPolicyDecisionWritePort implements PolicyDecisionWritePort {
+  async create(input: Omit<PolicyDecision, 'id' | 'createdAt' | 'evaluatedAt'> & { evaluatedAt?: Date }): Promise<PolicyDecision> {
+    const decision = await prisma.policyDecision.create({
+      data: {
+        decision: input.decision,
+        policyVersion: input.policyVersion,
+        matchedRuleId: input.matchedRuleId ?? null,
+        matchedRulePriority: input.matchedRulePriority ?? null,
+        resource: input.resource,
+        action: input.action,
+        role: input.role ?? null,
+        reason: input.reason,
+        evaluatorVersion: input.evaluatorVersion,
+        evaluatedAt: input.evaluatedAt ?? new Date(),
+      },
+    })
+    return normalizePolicyDecision(decision)
+  }
+}
+
+export class PrismaEvidenceReceiptWritePort implements EvidenceReceiptWritePort {
+  async findByGoGateRequestId(goGateRequestId: string): Promise<EvidenceReceipt | null> {
+    const receipt = await prisma.evidenceReceipt.findUnique({ where: { goGateRequestId } })
+    return receipt ? normalizeEvidenceReceipt(receipt) : null
+  }
+
+  async create(input: Omit<EvidenceReceipt, 'id' | 'createdAt' | 'updatedAt'>): Promise<EvidenceReceipt> {
+    const receipt = await prisma.evidenceReceipt.create({ data: input as any })
+    return normalizeEvidenceReceipt(receipt)
+  }
+}
+
 export class PrismaGoGateRequestReadPort implements GoGateRequestReadPort {
   async findById(id: string): Promise<GoGateRequest | null> {
     const request = await prisma.goGateRequest.findUnique({ where: { id } })
+    return request ? normalizeGoGateRequest(request) : null
+  }
+
+  async findByIdempotencyKey(idempotencyKey: string): Promise<GoGateRequest | null> {
+    const request = await prisma.goGateRequest.findUnique({ where: { idempotencyKey } })
     return request ? normalizeGoGateRequest(request) : null
   }
 
