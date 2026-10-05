@@ -295,13 +295,18 @@ model AuditEvent {
   policyVersion String?
   previousState Json?
   newState      Json?
-  authorization Json?
-  createdAt     DateTime    @default(now())
+  authorization      Json?
+  schemaVersion      String      @default("1")
+  sequence           Int         @default(0)
+  previousEventHash  String?
+  eventHash          String      @unique
+  createdAt          DateTime    @default(now())
 
   @@index([entityType, entityId])
   @@index([actorId])
   @@index([requestId])
   @@index([createdAt])
+  @@index([sequence])
 }
 
 model PipelineStage {

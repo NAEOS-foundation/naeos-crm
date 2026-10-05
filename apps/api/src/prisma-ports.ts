@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto'
 import { PrismaClient, Prisma } from '@prisma/client'
-import type { AuditEvent } from '@naeos-crm/audit'
+import type { AuditEvent, AuditSink } from '@naeos-crm/audit'
 import type {
   Activity,
   Campaign,
@@ -1101,27 +1102,49 @@ export class PrismaDashboardReadPort implements DashboardReadPort {
   }
 }
 
-export class PrismaAuditSink {
+export class PrismaAuditSink implements AuditSink {
   async append(event: AuditEvent): Promise<void> {
-    await prisma.auditEvent.create({
-      data: {
-        id: event.id,
-        actorId: event.actorId,
-        actorType: event.actorType,
-        action: event.action,
-        entityType: event.entityType,
-        entityId: event.entityId,
-        requestId: event.requestId,
-        source: event.source,
-        result: event.result,
-        reason: event.reason,
-        policyVersion: event.policyVersion,
-        previousState: event.previousState as unknown as Prisma.InputJsonValue,
-        newState: event.newState as unknown as Prisma.InputJsonValue,
-        authorization: event.authorization as unknown as Prisma.InputJsonValue,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext('naeos.audit.chain'))")
+      const previous = await tx.auditEvent.findFirst({
+        orderBy: { sequence: 'desc' },
+        select: { sequence: true, eventHash: true },
+      })
+      const sequence = (previous?.sequence ?? 0) + 1
+      const previousEventHash = previous?.eventHash ?? null
+      const schemaVersion = event.schemaVersion ?? '1'
+      const hashPayload = canonicalize({
+        id: event.id, sequence, schemaVersion, previousEventHash,
+        actorId: event.actorId ?? null, actorType: event.actorType ?? null,
+        action: event.action, entityType: event.entityType, entityId: event.entityId,
+        requestId: event.requestId ?? null, source: event.source ?? null,
+        result: event.result, reason: event.reason ?? null,
+        policyVersion: event.policyVersion ?? null,
+        previousState: event.previousState ?? null, newState: event.newState ?? null,
+        authorization: event.authorization ?? null, createdAt: event.createdAt.toISOString(),
+      })
+      const eventHash = createHash('sha256').update(hashPayload).digest('hex')
+      await tx.auditEvent.create({
+        data: {
+          id: event.id, actorId: event.actorId, actorType: event.actorType,
+          action: event.action, entityType: event.entityType, entityId: event.entityId,
+          requestId: event.requestId, source: event.source, result: event.result,
+          reason: event.reason, policyVersion: event.policyVersion,
+          previousState: event.previousState as unknown as Prisma.InputJsonValue,
+          newState: event.newState as unknown as Prisma.InputJsonValue,
+          authorization: event.authorization as unknown as Prisma.InputJsonValue,
+          schemaVersion, sequence, previousEventHash, eventHash, createdAt: event.createdAt,
+        },
+      })
     })
   }
+}
+
+function canonicalize(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return '[' + value.map(canonicalize).join(',') + ']'
+  const object = value as Record<string, unknown>
+  return '{' + Object.keys(object).sort().map((key) => JSON.stringify(key) + ':' + canonicalize(object[key])).join(',') + '}'
 }
 
 const normalizeContributor = (contributor: any): Contributor => ({
@@ -1223,6 +1246,10 @@ const normalizeAuditEvent = (event: any): AuditEvent => ({
   previousState: (event.previousState as Record<string, unknown>) ?? undefined,
   newState: (event.newState as Record<string, unknown>) ?? undefined,
   authorization: (event.authorization as Record<string, unknown>) ?? undefined,
+  schemaVersion: event.schemaVersion ?? undefined,
+  sequence: event.sequence ?? undefined,
+  previousEventHash: event.previousEventHash ?? undefined,
+  eventHash: event.eventHash ?? undefined,
   createdAt: event.createdAt,
 })
 
