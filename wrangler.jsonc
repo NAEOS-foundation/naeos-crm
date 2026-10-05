@@ -3,7 +3,6 @@
   "name": "naeos-crm",
   "main": "cloudflare/worker.js",
   "compatibility_date": "2026-09-25",
-  "routes": [],
   "vars": {
     "API_ORIGIN": "https://naeos-crm-api-production.up.railway.app"
   },
@@ -14,11 +13,5 @@
   },
   "observability": {
     "enabled": true
-  },
-  "exports": {
-    "NAEOSCRMContainer": {
-      "type": "durable-object",
-      "state": "deleted"
-    }
   }
 }
