@@ -18,6 +18,8 @@ export type PartnerType = 'TECHNOLOGY' | 'INTEGRATION' | 'STRATEGIC' | 'CHANNEL'
 export type InvestorType = 'ANGEL' | 'SEED' | 'VENTURE' | 'STRATEGIC' | 'OTHER'
 export type PolicyEffect = 'ALLOW' | 'DENY'
 export type GoGateStatus = 'READY' | 'WAITING_FOR_GO' | 'APPROVED' | 'EXECUTING' | 'EXECUTED' | 'FAILED' | 'EXPIRED' | 'REJECTED'
+export type VerificationStatus = 'PENDING' | 'VERIFIED' | 'FAILED'
+
 export type GoGateActionType =
   | 'SEND_EMAIL'
   | 'SEND_MESSAGE'
@@ -254,6 +256,46 @@ export interface GoGateRequest {
   verifiedAt?: Date | null
   providerResponse?: Record<string, unknown> | null
   result?: string
+  idempotencyKey: string
+  executionId?: string
+  provider?: string
+  providerRequestId?: string
+  executionAttempt: number
+  policyDecisionId?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface PolicyDecision {
+  id: string
+  decision: PolicyEffect
+  policyVersion: string
+  matchedRuleId?: string | null
+  matchedRulePriority?: number | null
+  resource: string
+  action: string
+  role?: string | null
+  reason: string
+  evaluatorVersion: string
+  evaluatedAt: Date
+  createdAt: Date
+}
+
+export interface EvidenceReceipt {
+  id: string
+  goGateRequestId: string
+  executionId: string
+  idempotencyKey: string
+  policyDecisionId?: string | null
+  policyVersion?: string | null
+  provider?: string | null
+  providerRequestId?: string | null
+  requestDigest: string
+  providerResponseDigest?: string | null
+  verificationStatus: VerificationStatus
+  verifiedAt?: Date | null
+  verifierVersion: string
+  receiptHash: string
   createdAt: Date
   updatedAt: Date
 }
