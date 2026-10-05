@@ -42,8 +42,8 @@ export class GoGateService {
     private readonly policy: PolicyPort,
     private readonly actions: Record<string, ExternalActionPort>,
     private readonly audit: AuditService,
-    private readonly policyDecisions: PolicyDecisionWritePort,
-    private readonly evidenceReceipts: EvidenceReceiptWritePort,
+    private readonly policyDecisions?: PolicyDecisionWritePort,
+    private readonly evidenceReceipts?: EvidenceReceiptWritePort,
   ) {}
 
   async getRequest(id: string): Promise<GoGateRequest | null> {
@@ -72,7 +72,7 @@ export class GoGateService {
     meta: GoGateAuditMeta
   }): Promise<GoGateRequest> {
     if (input.idempotencyKey) {
-      const existing = await this.requests.findByIdempotencyKey(input.idempotencyKey)
+      const existing = await this.requests.findByIdempotencyKey?.(input.idempotencyKey)
       if (existing) return existing
     }
 
@@ -83,7 +83,7 @@ export class GoGateService {
     })
     const idempotencyKey = input.idempotencyKey ?? `go-${Date.now()}-${digest({ actionType: input.actionType, target: input.target, payload: input.payload ?? null }).slice(0, 16)}`
 
-    const policyDecision = await this.policyDecisions.create({
+    const policyDecision = this.policyDecisions ? await this.policyDecisions.create({
       decision: policy.allow ? 'ALLOW' : 'DENY',
       policyVersion: policy.policyVersion ?? POLICY_VERSION,
       matchedRuleId: matchedRuleId(policy.reason),
@@ -93,7 +93,7 @@ export class GoGateService {
       role: input.requester.roles.join(','),
       reason: policy.reason ?? (policy.allow ? 'policy-allowed' : 'policy-rejected'),
       evaluatorVersion: 'naeos-policy-adapter-v1',
-    })
+    }) : null
 
     const created = await this.requests.create({
       actionType: input.actionType,
@@ -105,7 +105,7 @@ export class GoGateService {
       requestedBy: input.requester.id,
       idempotencyKey,
       executionAttempt: 0,
-      policyDecisionId: policyDecision.id,
+      policyDecisionId: policyDecision?.id,
     })
 
     await this.audit.record({
@@ -119,7 +119,7 @@ export class GoGateService {
       result: policy.allow ? 'SUCCESS' : 'FAILURE',
       reason: policy.reason ?? 'policy-rejected',
       policyVersion: policy.policyVersion,
-      authorization: { allowed: policy.allow, reason: policy.reason, policyDecisionId: policyDecision.id },
+      authorization: { allowed: policy.allow, reason: policy.reason, policyDecisionId: policyDecision?.id },
       newState: created as unknown as Record<string, unknown>,
     })
 
@@ -217,6 +217,8 @@ export class GoGateService {
       verifierVersion: EVIDENCE_VERIFIER_VERSION,
     }
     const receiptHash = digest(receiptPayload)
+    if (!this.evidenceReceipts) return null
+
     const receipt = await this.evidenceReceipts.create({
       ...receiptPayload,
       receiptHash,
@@ -270,11 +272,11 @@ export class GoGateService {
     const adapter = this.actions[current.actionType] ?? this.actions.default
     if (!adapter) throw conflict(`No adapter configured for action ${current.actionType}`)
 
-    const executionId = current.executionId ?? `exec-${current.id}-${current.executionAttempt + 1}`
+    const executionId = current.executionId ?? `exec-${current.id}-${(current.executionAttempt ?? 0) + 1}`
     const executing = await this.requests.transition(id, 'APPROVED', {
       status: 'EXECUTING',
       executionId,
-      executionAttempt: current.executionAttempt + 1,
+      executionAttempt: (current.executionAttempt ?? 0) + 1,
     }, new Date())
     if (!executing) throw conflict('Go-Gate request status has changed or approval has expired')
 
