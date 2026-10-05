@@ -44,9 +44,6 @@ export class OutboxDispatcher {
 
     try {
       await handler({ event })
-      const marked = await this.outbox.markSucceeded(event.id, this.options.workerId)
-      if (!marked) throw new Error('Outbox event lease was lost before success could be recorded')
-      return { status: 'SUCCEEDED', eventId: event.id }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       if (event.attempts >= this.maxAttempts) {
@@ -60,5 +57,9 @@ export class OutboxDispatcher {
       if (!marked) throw new Error('Outbox event lease was lost before retry could be recorded')
       return { status: 'PENDING', eventId: event.id }
     }
+
+    const marked = await this.outbox.markSucceeded(event.id, this.options.workerId)
+    if (!marked) throw new Error('Outbox event lease was lost before success could be recorded')
+    return { status: 'SUCCEEDED', eventId: event.id }
   }
 }
