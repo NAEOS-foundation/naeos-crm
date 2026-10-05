@@ -21,7 +21,7 @@ export class EmailAdapter implements ExternalActionPort {
 }
 
 export class GitHubAdapter implements ExternalActionPort {
-  async execute(input: Record<string, unknown>): Promise<{ ok: boolean; providerResponse?: unknown }> {
+  async execute(input: Record<string, unknown>): Promise<{ ok: boolean; providerResponse?: unknown; provider?: string; providerRequestId?: string }> {
     return {
       ok: true,
       provider: 'github',
