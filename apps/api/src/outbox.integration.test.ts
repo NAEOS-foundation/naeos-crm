@@ -29,7 +29,7 @@ describe('Outbox V1 database integration', () => {
     const receipts = new PrismaEvidenceReceiptWritePort()
     const outbox = new PrismaOutboxEventPort()
 
-    await requests.create({
+    const request = await requests.create({
       actionType: 'CREATE_ISSUE',
       target: 'integration-test',
       payload: { test: true, suffix },
@@ -52,7 +52,7 @@ describe('Outbox V1 database integration', () => {
     })
 
     const receipt: EvidenceReceipt = await receipts.create({
-      goGateRequestId,
+      goGateRequestId: request.id,
       executionId,
       idempotencyKey,
       policyDecisionId: undefined,
@@ -114,7 +114,7 @@ describe('Outbox V1 database integration', () => {
     const requestId = `${goGateRequestId}-handler`
     const handlerIdempotency = `${idempotencyKey}-handler`
 
-    await requests.create({
+    const request = await requests.create({
       actionType: 'CREATE_ISSUE',
       target: 'integration-test',
       payload: { handler: true, suffix },
@@ -137,7 +137,7 @@ describe('Outbox V1 database integration', () => {
     })
 
     const receipt = await receipts.create({
-      goGateRequestId: requestId,
+      goGateRequestId: request.id,
       executionId: `${executionId}-handler`,
       idempotencyKey: handlerIdempotency,
       policyDecisionId: undefined,
