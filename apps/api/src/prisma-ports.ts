@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { PrismaClient, Prisma } from '@prisma/client'
-import type { AuditEvent } from '@naeos-crm/audit'
+import type { AuditEvent, AuditSink } from '@naeos-crm/audit'
 import type {
   Activity,
   Campaign,
