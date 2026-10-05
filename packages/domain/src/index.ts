@@ -256,11 +256,11 @@ export interface GoGateRequest {
   verifiedAt?: Date | null
   providerResponse?: Record<string, unknown> | null
   result?: string
-  idempotencyKey: string
+  idempotencyKey?: string
   executionId?: string
   provider?: string
   providerRequestId?: string
-  executionAttempt: number
+  executionAttempt?: number
   policyDecisionId?: string
   createdAt: Date
   updatedAt: Date
