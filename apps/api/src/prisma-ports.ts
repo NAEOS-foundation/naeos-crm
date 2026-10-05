@@ -1246,6 +1246,10 @@ const normalizeAuditEvent = (event: any): AuditEvent => ({
   previousState: (event.previousState as Record<string, unknown>) ?? undefined,
   newState: (event.newState as Record<string, unknown>) ?? undefined,
   authorization: (event.authorization as Record<string, unknown>) ?? undefined,
+  schemaVersion: event.schemaVersion ?? undefined,
+  sequence: event.sequence ?? undefined,
+  previousEventHash: event.previousEventHash ?? undefined,
+  eventHash: event.eventHash ?? undefined,
   createdAt: event.createdAt,
 })
 
