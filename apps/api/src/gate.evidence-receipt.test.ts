@@ -6,7 +6,7 @@ import type { EvidenceReceiptWritePort, GoGateRequestReadPort, PolicyDecisionWri
 import { GoGateService } from './gate'
 import type { ExternalActionPort, PolicyPort } from './ports'
 
-const actor = { id: 'user-1', roles: ['ADMIN'] as const }
+const actor: import('./gate').GoGateActor = { id: 'user-1', roles: ['ADMIN'] }
 
 function request(overrides: Partial<GoGateRequest> = {}): GoGateRequest {
   const now = new Date('2026-10-05T08:00:00.000Z')
@@ -187,7 +187,7 @@ describe('GoGateService evidence receipt V1', () => {
     expect(h.createdReceipts[0].providerResponseDigest).toMatch(/^[a-f0-9]{64}$/)
     expect(h.createdReceipts[0].receiptHash).toMatch(/^[a-f0-9]{64}$/)
 
-    const receiptAudit = h.auditSink.append.mock.calls.find(([event]) => event.action === 'go-gate.evidence-receipt.created')
+    const receiptAudit = h.auditSink.append.mock.calls.find((call) => (call[0] as { action?: string }).action === 'go-gate.evidence-receipt.created')
     expect(receiptAudit?.[0]).toMatchObject({
       entityType: 'evidence-receipt',
       entityId: 'receipt-1',
