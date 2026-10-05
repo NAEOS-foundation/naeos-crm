@@ -1741,7 +1741,15 @@ export class PrismaEvidenceReceiptWritePort implements EvidenceReceiptWritePort 
           aggregateId: created.id,
           eventType: 'evidence-receipt.created',
           schemaVersion: '1',
-          payload: created as unknown as Prisma.InputJsonValue,
+          payload: {
+            id: created.id,
+            goGateRequestId: created.goGateRequestId,
+            executionId: created.executionId,
+            verificationStatus: created.verificationStatus,
+            receiptHash: created.receiptHash,
+            createdAt: created.createdAt.toISOString(),
+            updatedAt: created.updatedAt.toISOString(),
+          } as Prisma.InputJsonValue,
           idempotencyKey: `evidence-receipt:${created.id}`,
         },
       })
