@@ -13,5 +13,8 @@
   },
   "observability": {
     "enabled": true
+  },
+  "build": {
+    "command": "npm run build --workspace @naeos-crm/web"
   }
 }
