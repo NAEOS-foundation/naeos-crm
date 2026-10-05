@@ -7,7 +7,7 @@ function mockProviderRequestId(provider: string, input: Record<string, unknown>)
 }
 
 export class EmailAdapter implements ExternalActionPort {
-  async execute(input: Record<string, unknown>): Promise<{ ok: boolean; providerResponse?: unknown }> {
+  async execute(input: Record<string, unknown>): Promise<{ ok: boolean; providerResponse?: unknown; provider?: string; providerRequestId?: string }> {
     return {
       ok: true,
       provider: 'email',
