@@ -1497,6 +1497,10 @@ export class GoGateFacade {
     return this.gate.getRequest(id)
   }
 
+  async getEvidenceReceipt(id: string) {
+    return this.gate.getEvidenceReceipt(id)
+  }
+
   async listRequests(params?: { status?: GoGateRequest['status']; actionType?: GoGateRequest['actionType'] } & PageQuery) {
     return this.gate.listRequests(params)
   }
