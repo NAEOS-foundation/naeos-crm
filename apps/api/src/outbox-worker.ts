@@ -16,7 +16,7 @@ export class OutboxWorker {
     private readonly dispatcher: OutboxDispatcher,
     options: OutboxWorkerOptions = {},
   ) {
-    this.pollIntervalMs = options.pollIntervalMs ?? 1_000
+    this.pollIntervalMs = options.pollIntervalMs ?? 5_000
     this.onResult = options.onResult
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
   }

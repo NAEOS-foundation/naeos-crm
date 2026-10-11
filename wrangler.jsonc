@@ -20,10 +20,10 @@
   "observability": {
     "enabled": true
   },
-  "exports": {
-    "NAEOSCRMContainer": {
-      "type": "durable-object",
-      "state": "deleted"
+  "previews": {
+    "vars": {
+      "API_ORIGIN": "https://naeos-crm-api-naeos-crm-pr-33.up.railway.app"
     }
-  }
+  },
+  "preview_urls": true
 }
