@@ -24,5 +24,6 @@
     "vars": {
       "API_ORIGIN": "https://naeos-crm-api-naeos-crm-pr-30.up.railway.app"
     }
-  }
+  },
+  "preview_urls": true
 }
