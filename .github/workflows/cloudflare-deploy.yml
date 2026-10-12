@@ -2,7 +2,7 @@ name: Deploy CRM to Cloudflare
 
 on:
   push:
-    branches: [main]
+    branches: [main, staging, develop]
     paths:
       - "apps/web/**"
       - "cloudflare/**"
@@ -16,23 +16,25 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-cloudflare-deploy
+  group: cloudflare-deploy-\${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Deploy Worker and Static Assets
+    if: github.ref_name == 'main' || github.ref_name == 'staging' || github.ref_name == 'develop'
+    name: Deploy CRM Worker and Static Assets
     runs-on: ubuntu-latest
-    environment: production
+    environment:
+      name: \${{ github.ref_name == 'main' && 'production' || github.ref_name == 'staging' && 'staging' || 'development' }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24.21.0
           cache: npm
 
       - name: Install dependencies
@@ -43,20 +45,35 @@ jobs:
 
       - name: Validate Cloudflare credentials
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           test -n "$CLOUDFLARE_API_TOKEN"
           test -n "$CLOUDFLARE_ACCOUNT_ID"
 
       - name: Verify Cloudflare account access
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@latest whoami
 
-      - name: Deploy Worker and Static Assets
+      - name: Deploy production Worker
+        if: github.ref_name == 'main'
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@latest deploy --config wrangler.jsonc
+
+      - name: Deploy staging Worker
+        if: github.ref_name == 'staging'
+        env:
+          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@latest deploy --config wrangler.jsonc --env staging
+
+      - name: Deploy development Worker
+        if: github.ref_name == 'develop'
+        env:
+          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@latest deploy --config wrangler.jsonc --env development
