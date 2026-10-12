@@ -25,5 +25,33 @@
       "type": "durable-object",
       "state": "deleted"
     }
+  },
+  "env": {
+    "staging": {
+      "name": "naeos-crm-staging",
+      "workers_dev": true,
+      "routes": [],
+      "vars": {
+        "API_ORIGIN": "https://naeos-crm-api-staging-staging.up.railway.app"
+      },
+      "assets": {
+        "directory": "./apps/web/dist",
+        "binding": "ASSETS",
+        "not_found_handling": "single-page-application"
+      }
+    },
+    "development": {
+      "name": "naeos-crm-development",
+      "workers_dev": true,
+      "routes": [],
+      "vars": {
+        "API_ORIGIN": "https://naeos-crm-api-development-development.up.railway.app"
+      },
+      "assets": {
+        "directory": "./apps/web/dist",
+        "binding": "ASSETS",
+        "not_found_handling": "single-page-application"
+      }
+    }
   }
 }
