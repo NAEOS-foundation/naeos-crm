@@ -38,6 +38,7 @@ bootstrapAuthUser()
       )
       worker = new OutboxWorker(dispatcher, {
         pollIntervalMs: outboxPollIntervalMs,
+        errorBackoffMaxMs: Number(process.env.OUTBOX_ERROR_BACKOFF_MAX_MS ?? 60_000),
         onResult: (result) => {
           if (result.status !== 'PENDING') {
             console.log(JSON.stringify({
