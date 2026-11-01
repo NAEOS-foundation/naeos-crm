@@ -54,7 +54,6 @@ export class OutboxWorker {
 
     return new Promise((resolve) => {
       let settled = false
-      let timer: ReturnType<typeof setTimeout>
       const finish = () => {
         if (settled) return
         settled = true
@@ -62,7 +61,7 @@ export class OutboxWorker {
         this.wakeSleep = undefined
         resolve()
       }
-      timer = setTimeout(finish, ms)
+      const timer = setTimeout(finish, ms)
       this.wakeSleep = finish
     })
   }
