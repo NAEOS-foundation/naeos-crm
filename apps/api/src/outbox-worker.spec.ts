@@ -88,18 +88,19 @@ describe('OutboxWorker', () => {
       .mockRejectedValueOnce(new Error('database unavailable'))
     const dispatcher = new OutboxDispatcher(p, {}, { workerId: 'worker-1' })
     const delays: number[] = []
-    let worker!: OutboxWorker
+    let stopWorker = () => undefined
     const sleep = vi.fn(async (ms: number) => {
       delays.push(ms)
-      if (delays.length === 3) worker.stop()
+      if (delays.length === 3) stopWorker()
     })
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    worker = new OutboxWorker(dispatcher, {
+    const worker = new OutboxWorker(dispatcher, {
       pollIntervalMs: 1_000,
       errorBackoffMaxMs: 2_500,
       random: () => 0.5,
       sleep,
     })
+    stopWorker = () => worker.stop()
 
     try {
       await worker.start()
@@ -118,15 +119,16 @@ describe('OutboxWorker', () => {
       .mockRejectedValueOnce(new Error('database unavailable'))
     const dispatcher = new OutboxDispatcher(p, {}, { workerId: 'worker-1' })
     const delays: number[] = []
-    let worker!: OutboxWorker
-    worker = new OutboxWorker(dispatcher, {
+    let stopWorker = () => undefined
+    const worker = new OutboxWorker(dispatcher, {
       pollIntervalMs: 1_000,
       random: () => 0.5,
       sleep: async (ms) => {
         delays.push(ms)
-        if (delays.length === 3) worker.stop()
+        if (delays.length === 3) stopWorker()
       },
     })
+    stopWorker = () => worker.stop()
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     try {
