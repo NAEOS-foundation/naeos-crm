@@ -6,6 +6,8 @@ on:
       - fix/m1-runtime-stabilization
     paths:
       - .github/workflows/regenerate-package-lock.yml
+      - package.json
+      - apps/*/package.json
   workflow_dispatch:
     inputs:
       target_branch:
