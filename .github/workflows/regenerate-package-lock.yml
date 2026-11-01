@@ -83,6 +83,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package-lock.json
           git commit -m "chore(deps): regenerate package lock in CI"
+          # Another PR commit may land while npm resolves dependencies. Rebase
+          # the generated lockfile commit onto the latest branch before pushing.
+          git fetch origin "${{ steps.target.outputs.branch }}"
+          git rebase "origin/${{ steps.target.outputs.branch }}"
           git push origin HEAD:${{ steps.target.outputs.branch }}
 
       - name: Dependency audit report
