@@ -88,7 +88,7 @@ describe('OutboxWorker', () => {
       .mockRejectedValueOnce(new Error('database unavailable'))
     const dispatcher = new OutboxDispatcher(p, {}, { workerId: 'worker-1' })
     const delays: number[] = []
-    let stopWorker = () => undefined
+    let stopWorker: () => void = () => undefined
     const sleep = vi.fn(async (ms: number) => {
       delays.push(ms)
       if (delays.length === 3) stopWorker()
@@ -119,7 +119,7 @@ describe('OutboxWorker', () => {
       .mockRejectedValueOnce(new Error('database unavailable'))
     const dispatcher = new OutboxDispatcher(p, {}, { workerId: 'worker-1' })
     const delays: number[] = []
-    let stopWorker = () => undefined
+    let stopWorker: () => void = () => undefined
     const worker = new OutboxWorker(dispatcher, {
       pollIntervalMs: 1_000,
       random: () => 0.5,
