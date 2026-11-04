@@ -1,4 +1,5 @@
-import { afterAll, describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { EvidenceReceipt } from '@naeos-crm/domain'
 import type { OutboxDispatchContext } from './outbox'
 import {
@@ -12,15 +13,31 @@ import { OutboxWorker, createEvidenceReceiptOutboxHandler } from './outbox-worke
 
 describe('Outbox V1 database integration', () => {
   const suffix = `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const runReceiptHash = (tag: string) => createHash('sha256').update(`${tag}:${suffix}`).digest('hex')
   const goGateRequestId = `gate-${suffix}`
   const idempotencyKey = `idem-${suffix}`
   const executionId = `exec-${suffix}`
+  const createdRequestIds: string[] = []
+  const createdReceiptIds: string[] = []
+
+  beforeAll(async () => {
+    const staleRequests = await prisma.goGateRequest.findMany({
+      where: { target: 'integration-test' },
+      select: { id: true },
+    })
+    const staleReceipts = await prisma.evidenceReceipt.findMany({
+      where: { goGateRequestId: { in: staleRequests.map(({ id }) => id) } },
+      select: { id: true },
+    })
+    await prisma.outboxEvent.deleteMany({ where: { aggregateId: { in: staleReceipts.map(({ id }) => id) } } })
+    await prisma.evidenceReceipt.deleteMany({ where: { id: { in: staleReceipts.map(({ id }) => id) } } })
+    await prisma.goGateRequest.deleteMany({ where: { id: { in: staleRequests.map(({ id }) => id) } } })
+  })
 
   afterAll(async () => {
-    const receiptsToClean = await prisma.evidenceReceipt.findMany({ where: { goGateRequestId: { startsWith: goGateRequestId } }, select: { id: true } })
-    await prisma.outboxEvent.deleteMany({ where: { aggregateId: { in: receiptsToClean.map(({ id }) => id) } } })
-    await prisma.evidenceReceipt.deleteMany({ where: { goGateRequestId: { startsWith: goGateRequestId } } })
-    await prisma.goGateRequest.deleteMany({ where: { id: { startsWith: goGateRequestId } } })
+    await prisma.outboxEvent.deleteMany({ where: { aggregateId: { in: createdReceiptIds } } })
+    await prisma.evidenceReceipt.deleteMany({ where: { id: { in: createdReceiptIds } } })
+    await prisma.goGateRequest.deleteMany({ where: { id: { in: createdRequestIds } } })
     await prisma.$disconnect()
   })
 
@@ -50,6 +67,7 @@ describe('Outbox V1 database integration', () => {
       executionAttempt: 1,
       policyDecisionId: undefined,
     })
+    createdRequestIds.push(request.id)
 
     const receipt: EvidenceReceipt = await receipts.create({
       goGateRequestId: request.id,
@@ -64,8 +82,9 @@ describe('Outbox V1 database integration', () => {
       verificationStatus: 'VERIFIED',
       verifiedAt: new Date('2026-10-05T10:00:00.000Z'),
       verifierVersion: 'evidence-v1',
-      receiptHash: 'c'.repeat(64),
+      receiptHash: runReceiptHash('c'),
     })
+    createdReceiptIds.push(receipt.id)
 
     const queued = await prisma.outboxEvent.findUnique({
       where: { idempotencyKey: `evidence-receipt:${receipt.id}` },
@@ -111,9 +130,7 @@ describe('Outbox V1 database integration', () => {
     const requests = new PrismaGoGateRequestReadPort()
     const receipts = new PrismaEvidenceReceiptWritePort()
     const outbox = new PrismaOutboxEventPort()
-    const requestId = `${goGateRequestId}-handler`
     const handlerIdempotency = `${idempotencyKey}-handler`
-
     const request = await requests.create({
       actionType: 'CREATE_ISSUE',
       target: 'integration-test',
@@ -135,6 +152,7 @@ describe('Outbox V1 database integration', () => {
       executionAttempt: 1,
       policyDecisionId: undefined,
     })
+    createdRequestIds.push(request.id)
 
     const receipt = await receipts.create({
       goGateRequestId: request.id,
@@ -149,8 +167,9 @@ describe('Outbox V1 database integration', () => {
       verificationStatus: 'VERIFIED',
       verifiedAt: new Date('2026-10-05T10:00:00.000Z'),
       verifierVersion: 'evidence-v1',
-      receiptHash: 'f'.repeat(64),
+      receiptHash: runReceiptHash('f'),
     })
+    createdReceiptIds.push(receipt.id)
 
     const queued = await prisma.outboxEvent.findUnique({
       where: { idempotencyKey: `evidence-receipt:${receipt.id}` },
