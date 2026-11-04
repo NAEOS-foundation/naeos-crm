@@ -22,12 +22,10 @@ function parseCookies(header?: string): Record<string, string> {
   )
 }
 
-declare global {
-  namespace Express {
-    interface Request {
-      requestId?: string
-      actor?: AuthenticatedActor
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    requestId?: string
+    actor?: AuthenticatedActor
   }
 }
 
