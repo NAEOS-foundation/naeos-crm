@@ -79,4 +79,77 @@ describe('OutboxWorker', () => {
     worker.stop()
     expect(worker.isRunning()).toBe(false)
   })
+
+  it('backs off exponentially after database errors and caps the delay', async () => {
+    const p = port(null)
+    vi.mocked(p.claimNext)
+      .mockRejectedValueOnce(new Error('database unavailable'))
+      .mockRejectedValueOnce(new Error('database unavailable'))
+      .mockRejectedValueOnce(new Error('database unavailable'))
+    const dispatcher = new OutboxDispatcher(p, {}, { workerId: 'worker-1' })
+    const delays: number[] = []
+    let stopWorker: () => void = () => undefined
+    const sleep = vi.fn(async (ms: number) => {
+      delays.push(ms)
+      if (delays.length === 3) stopWorker()
+    })
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const worker = new OutboxWorker(dispatcher, {
+      pollIntervalMs: 1_000,
+      errorBackoffMaxMs: 2_500,
+      random: () => 0.5,
+      sleep,
+    })
+    stopWorker = () => worker.stop()
+
+    try {
+      await worker.start()
+      expect(delays).toEqual([1_000, 2_000, 2_500])
+      expect(errorLog).toHaveBeenCalledTimes(3)
+    } finally {
+      errorLog.mockRestore()
+    }
+  })
+
+  it('resets the error backoff after a successful poll', async () => {
+    const p = port(null)
+    vi.mocked(p.claimNext)
+      .mockRejectedValueOnce(new Error('database unavailable'))
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error('database unavailable'))
+    const dispatcher = new OutboxDispatcher(p, {}, { workerId: 'worker-1' })
+    const delays: number[] = []
+    let stopWorker: () => void = () => undefined
+    const worker = new OutboxWorker(dispatcher, {
+      pollIntervalMs: 1_000,
+      random: () => 0.5,
+      sleep: async (ms) => {
+        delays.push(ms)
+        if (delays.length === 3) stopWorker()
+      },
+    })
+    stopWorker = () => worker.stop()
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    try {
+      await worker.start()
+      expect(delays).toEqual([1_000, 1_000, 1_000])
+    } finally {
+      errorLog.mockRestore()
+    }
+  })
+
+  it('interrupts an idle wait when stopped so shutdown can finish promptly', async () => {
+    const p = port(null)
+    const dispatcher = new OutboxDispatcher(p, {}, { workerId: 'worker-1' })
+    const worker = new OutboxWorker(dispatcher, { pollIntervalMs: 60_000 })
+
+    const task = worker.start()
+    await new Promise((resolve) => setImmediate(resolve))
+    worker.stop()
+
+    await expect(task).resolves.toBeUndefined()
+    expect(worker.isRunning()).toBe(false)
+  })
+
 })

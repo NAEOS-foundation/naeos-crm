@@ -9,6 +9,7 @@ import { OutboxWorker, createEvidenceReceiptOutboxHandler } from './outbox-worke
 const port = Number(process.env.PORT ?? 3000)
 const workerEnabled = process.env.OUTBOX_WORKER_ENABLED !== 'false'
 const workerId = process.env.OUTBOX_WORKER_ID ?? `api-${os.hostname()}-${process.pid}`
+const outboxPollIntervalMs = Number(process.env.OUTBOX_POLL_INTERVAL_MS ?? 5_000)
 
 bootstrapAuthUser()
   .then(() => {
@@ -23,6 +24,7 @@ bootstrapAuthUser()
     })
 
     let worker: OutboxWorker | undefined
+    let workerTask: Promise<void> | undefined
     if (workerEnabled) {
       const dispatcher = new OutboxDispatcher(
         new PrismaOutboxEventPort(),
@@ -35,7 +37,8 @@ bootstrapAuthUser()
         },
       )
       worker = new OutboxWorker(dispatcher, {
-        pollIntervalMs: Number(process.env.OUTBOX_POLL_INTERVAL_MS ?? 1_000),
+        pollIntervalMs: outboxPollIntervalMs,
+        errorBackoffMaxMs: Number(process.env.OUTBOX_ERROR_BACKOFF_MAX_MS ?? 60_000),
         onResult: (result) => {
           if (result.status !== 'PENDING') {
             console.log(JSON.stringify({
@@ -46,11 +49,11 @@ bootstrapAuthUser()
           }
         },
       })
-      void worker.start()
+      workerTask = worker.start()
       console.log(JSON.stringify({
         event: 'outbox_worker_started',
         workerId,
-        pollIntervalMs: Number(process.env.OUTBOX_POLL_INTERVAL_MS ?? 1_000),
+        pollIntervalMs: outboxPollIntervalMs,
       }))
     }
 
@@ -59,21 +62,38 @@ bootstrapAuthUser()
       if (shuttingDown) return
       shuttingDown = true
       worker?.stop()
-      server.close(async () => {
-        await prisma.$disconnect()
-        console.log(JSON.stringify({ event: 'server_stopped', service: 'naeos-crm-api', signal }))
-        process.exit(0)
+      server.close(() => {
+        void (async () => {
+          // Keep Prisma connected until an in-flight Outbox dispatch has settled.
+          await workerTask?.catch((error) => {
+            console.error(JSON.stringify({
+              event: 'outbox_worker_shutdown_error',
+              error: error instanceof Error ? error.message : String(error),
+            }))
+          })
+          await prisma.$disconnect()
+          console.log(JSON.stringify({ event: 'server_stopped', service: 'naeos-crm-api', signal }))
+          process.exit(0)
+        })().catch((error) => {
+          console.error(JSON.stringify({
+            event: 'shutdown_failed',
+            service: 'naeos-crm-api',
+            error: error instanceof Error ? error.message : String(error),
+          }))
+          process.exit(1)
+        })
       })
     }
 
     process.once('SIGTERM', () => shutdown('SIGTERM'))
     process.once('SIGINT', () => shutdown('SIGINT'))
   })
-  .catch((error) => {
+  .catch(async (error) => {
     console.error(JSON.stringify({
       event: 'startup_failed',
       service: 'naeos-crm-api',
       error: error instanceof Error ? error.message : String(error),
     }))
+    await prisma.$disconnect().catch(() => undefined)
     process.exit(1)
   })
