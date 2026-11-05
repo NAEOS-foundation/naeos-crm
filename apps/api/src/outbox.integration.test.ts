@@ -24,7 +24,6 @@ async function dispatchUntilSucceeded(dispatcher: OutboxDispatcher, eventId: str
 describe('Outbox V1 database integration', () => {
   const suffix = `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}`
   const runReceiptHash = (tag: string) => createHash('sha256').update(`${tag}:${suffix}`).digest('hex')
-  const goGateRequestId = `gate-${suffix}`
   const idempotencyKey = `idem-${suffix}`
   const executionId = `exec-${suffix}`
   const createdRequestIds: string[] = []
