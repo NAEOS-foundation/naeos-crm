@@ -13,8 +13,9 @@ import { createEvidenceReceiptOutboxHandler } from './outbox-worker'
 
 async function dispatchUntilSucceeded(dispatcher: OutboxDispatcher, eventId: string, maxRuns = 100): Promise<void> {
   for (let i = 0; i < maxRuns; i++) {
-    const current = await prisma.outboxEvent.findUnique({ where: { id: eventId }, select: { status: true } })
+    const current = await prisma.outboxEvent.findUnique({ where: { id: eventId }, select: { status: true, lastError: true } })
     if (current?.status === 'SUCCEEDED') return
+    if (current?.status === 'FAILED') throw new Error(`outbox event ${eventId} failed: ${current.lastError}`)
     await dispatcher.dispatchNext()
   }
   throw new Error(`outbox event ${eventId} was not processed within ${maxRuns} dispatch cycles`)
