@@ -9,6 +9,7 @@ import { OutboxWorker, createEvidenceReceiptOutboxHandler } from './outbox-worke
 const port = Number(process.env.PORT ?? 3000)
 const workerEnabled = process.env.OUTBOX_WORKER_ENABLED !== 'false'
 const workerId = process.env.OUTBOX_WORKER_ID ?? `api-${os.hostname()}-${process.pid}`
+const outboxPollIntervalMs = Number(process.env.OUTBOX_POLL_INTERVAL_MS ?? 5_000)
 
 bootstrapAuthUser()
   .then(() => {
@@ -35,7 +36,7 @@ bootstrapAuthUser()
         },
       )
       worker = new OutboxWorker(dispatcher, {
-        pollIntervalMs: Number(process.env.OUTBOX_POLL_INTERVAL_MS ?? 1_000),
+        pollIntervalMs: outboxPollIntervalMs,
         onResult: (result) => {
           if (result.status !== 'PENDING') {
             console.log(JSON.stringify({
@@ -50,7 +51,7 @@ bootstrapAuthUser()
       console.log(JSON.stringify({
         event: 'outbox_worker_started',
         workerId,
-        pollIntervalMs: Number(process.env.OUTBOX_POLL_INTERVAL_MS ?? 1_000),
+        pollIntervalMs: outboxPollIntervalMs,
       }))
     }
 
