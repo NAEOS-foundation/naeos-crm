@@ -87,7 +87,11 @@ export function App() {
     <div className="layout">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <strong>NAEOS CRM</strong>
+          <img src="/naeos-brand-mark.svg" alt="NAEOS" className="sidebar-brand-mark" />
+          <div className="sidebar-brand-name">
+            <strong>NAEOS</strong>
+            <span>CRM</span>
+          </div>
         </div>
         <nav>
           {NAV_ITEMS.filter((item) => can(actor, item.resource, item.action)).map((item) => (

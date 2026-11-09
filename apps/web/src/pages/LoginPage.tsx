@@ -12,6 +12,7 @@ export function LoginPage() {
   return (
     <div className="login-wrap">
       <div className="login-card">
+        <img src="/naeos-brand-mark.svg" alt="NAEOS" className="login-brand-mark" />
         <h1>NAEOS CRM</h1>
         <p className="login-subtitle">Sign in to continue</p>
         <form onSubmit={(event) => {
