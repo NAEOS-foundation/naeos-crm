@@ -1,10 +1,8 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import type { Request, Response } from 'express'
 import jwt from 'jsonwebtoken'
-import { PrismaClient } from '@prisma/client'
 import type { AuthenticatedActor } from '@naeos-crm/auth'
-
-const prisma = new PrismaClient()
+import { prisma } from './prisma-ports'
 const SESSION_COOKIE = 'naeos_session'
 const SESSION_TTL_SECONDS = 60 * 60 * 8
 const SCRYPT_N = 2 ** 17
@@ -88,8 +86,4 @@ export async function bootstrapAuthUser(): Promise<void> {
     return
   }
   await prisma.user.create({ data: { email, name: 'System Admin', roles: ['ADMIN'], status: 'ACTIVE', passwordHash: hash } })
-}
-
-export async function closeAuthDb() {
-  await prisma.$disconnect()
 }
