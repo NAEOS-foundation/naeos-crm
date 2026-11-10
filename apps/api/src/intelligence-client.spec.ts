@@ -34,19 +34,21 @@ describe('Intelligence engineering analysis client', () => {
     vi.stubEnv('INTELLIGENCE_API_URL', '')
     vi.stubEnv('INTELLIGENCE_SERVICE_TOKEN', '')
     vi.stubEnv('INTELLIGENCE_ALLOWED_REPOSITORIES', '')
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
 
     await expect(analyzeEngineeringRepository('NAEOS-foundation/naeos', 'req-1'))
       .rejects.toBeInstanceOf(IntelligenceUnavailableError)
-    expect(globalThis.fetch).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('rejects non-HTTPS service URLs outside localhost', async () => {
     configureService()
     vi.stubEnv('INTELLIGENCE_API_URL', 'http://intelligence.example')
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
 
     await expect(analyzeEngineeringRepository('NAEOS-foundation/naeos', 'req-2'))
       .rejects.toBeInstanceOf(IntelligenceUnavailableError)
-    expect(globalThis.fetch).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('rejects repositories outside the allowlist before upstream requests', async () => {
