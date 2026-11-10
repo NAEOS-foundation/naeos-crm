@@ -80,6 +80,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Set<ResourceAction>> = {
     'policy:read',
     'policy:write',
     'policy:delete',
+    'intelligence:analyze',
     'audit:read',
     'dashboard:read',
   ]),
