@@ -62,6 +62,7 @@ import { ApiAuthGuard } from './auth'
 import { asyncHandler } from './middleware'
 import { EmailAdapter, GitHubAdapter } from './integration-adapters'
 import { NAEOSPolicyAdapter } from './policy-adapter'
+import { analyzeEngineeringRepository, IntelligenceUnavailableError } from './intelligence-client'
 import { GoGateService } from './gate'
 import {
   auditQuerySchema,
@@ -88,6 +89,7 @@ import {
   createUseCaseSchema,
   createUserSchema,
   followUpQuerySchema,
+  engineeringAnalysisSchema,
   goGateDecisionSchema,
   goGateQuerySchema,
   idParamSchema,
@@ -1132,6 +1134,51 @@ router.delete('/api/v1/use-cases/:id', asyncHandler(async (req, res) => {
 }))
 
 // ---------- Analytics ----------
+
+router.post('/api/v1/intelligence/engineering-analysis', asyncHandler(async (req, res) => {
+  if (!(await requireAuth(req, res, 'intelligence', 'analyze'))) return
+  const parsed = engineeringAnalysisSchema.safeParse(req.body)
+  if (!parsed.success) {
+    res.status(400).json(buildErrorResponse('INVALID_REQUEST', 'Expected a valid repository owner/name', req.requestId))
+    return
+  }
+
+  try {
+    const result = await analyzeEngineeringRepository(parsed.data.repository, req.requestId ?? 'unknown')
+    await auditService.record({
+      actorId: req.actor?.id,
+      actorType: 'user',
+      action: 'intelligence.engineering-analysis-requested',
+      entityType: 'intelligence-request',
+      entityId: result.request_id,
+      requestId: req.requestId,
+      source: 'api',
+      result: 'SUCCESS',
+      reason: 'read-only repository context submitted to Intelligence',
+      authorization: { allowed: true },
+      newState: { repository: parsed.data.repository, intelligenceRequestId: result.request_id },
+    })
+    res.json({ data: result, meta: buildSuccessMeta(req.requestId) })
+  } catch (error) {
+    const message = error instanceof IntelligenceUnavailableError
+      ? error.message
+      : 'Intelligence service request failed'
+    await auditService.record({
+      actorId: req.actor?.id,
+      actorType: 'user',
+      action: 'intelligence.engineering-analysis-failed',
+      entityType: 'intelligence-request',
+      entityId: req.requestId ?? 'unknown',
+      requestId: req.requestId,
+      source: 'api',
+      result: 'FAILURE',
+      reason: message,
+      authorization: { allowed: true },
+      newState: { repository: parsed.data.repository },
+    })
+    res.status(503).json(buildErrorResponse('INTELLIGENCE_UNAVAILABLE', message, req.requestId))
+  }
+}))
 
 router.get('/api/v1/analytics/pipeline', asyncHandler(async (req, res) => {
   if (!(await requireAuth(req, res, 'analytics', 'read'))) return
