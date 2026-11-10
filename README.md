@@ -88,7 +88,10 @@ All routes live under `/api/v1` and require authentication. RBAC is enforced per
 | Analytics       | `GET /analytics/pipeline`, `GET /analytics/campaigns`, `GET /analytics/follow-ups` |
 | Dashboard       | `GET /dashboard`                                 |
 | Audit           | `GET /audit`                                     |
+| Engineering analysis | `POST /intelligence/engineering-analysis` (admin only; read-only; repository allowlist required) |
 
 ## Roadmap
 
-See `docs/CRM-ROADMAP.md` for the phased plan. Phases 1–4 are delivered; Phases 5–6 (AI, integrations) remain intentionally deferred. Modeling decisions are recorded in `docs/adr/ADR-006-campaign-modeling.md`, `docs/adr/ADR-007-ecosystem-use-cases.md`, and `docs/adr/ADR-008-go-gate-policy-rules.md` (with the Phase 4 integration boundary in `docs/adr/ADR-005-policy-integration-boundary.md`).
+See `docs/CRM-ROADMAP.md` for the phased plan. Phases 1–4 are delivered; broader Phases 5–6 (AI and provider integrations) remain deferred. The first opt-in, read-only Intelligence connector is implemented. Modeling decisions are recorded in `docs/adr/ADR-006-campaign-modeling.md`, `docs/adr/ADR-007-ecosystem-use-cases.md`, and `docs/adr/ADR-008-go-gate-policy-rules.md` (with the Phase 4 integration boundary in `docs/adr/ADR-005-policy-integration-boundary.md`).
+
+The connector is documented in [`docs/NAEOS-INTEGRATION.md`](docs/NAEOS-INTEGRATION.md). It is opt-in and requires service authentication configuration before use.
