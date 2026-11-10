@@ -19,6 +19,12 @@ export const idParamSchema = z.object({
   id: z.string().min(1),
 })
 
+export const engineeringAnalysisSchema = z.object({
+  repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/).max(255).refine((value) =>
+    value.split('/').every((segment) => segment !== '.' && segment !== '..'),
+  ),
+}).strict()
+
 export const createUserSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1),

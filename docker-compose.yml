@@ -7,15 +7,58 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - '5432:5432'
+      - '${CRM_POSTGRES_PORT:-5434}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d naeos_crm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7-alpine
     container_name: naeos-crm-redis
     ports:
-      - '6379:6379'
+      - '${CRM_REDIS_PORT:-6380}:6379'
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: naeos-crm:local
+    command: ["npx", "prisma", "migrate", "deploy", "--schema=./prisma/schema.prisma"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/naeos_crm
+      DIRECT_URL: postgresql://postgres:postgres@postgres:5432/naeos_crm
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: naeos-crm:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/naeos_crm
+      DIRECT_URL: postgresql://postgres:postgres@postgres:5432/naeos_crm
+      NODE_ENV: production
+      PORT: 3000
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
+      AUTH_DISABLED: "false"
+      AUTH_BOOTSTRAP_EMAIL: ${AUTH_BOOTSTRAP_EMAIL:-admin@example.com}
+      AUTH_BOOTSTRAP_PASSWORD: ${AUTH_BOOTSTRAP_PASSWORD:?Set AUTH_BOOTSTRAP_PASSWORD in .env}
+      OUTBOX_WORKER_ENABLED: ${OUTBOX_WORKER_ENABLED:-true}
+      INTELLIGENCE_API_URL: ${INTELLIGENCE_API_URL:-http://host.docker.internal:8080}
+      INTELLIGENCE_ALLOWED_REPOSITORIES: ${INTELLIGENCE_ALLOWED_REPOSITORIES:-}
+      INTELLIGENCE_SERVICE_TOKEN: ${INTELLIGENCE_SERVICE_TOKEN:-}
+    ports:
+      - '3000:3000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
 
 volumes:
   postgres-data:
