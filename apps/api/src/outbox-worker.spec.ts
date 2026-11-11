@@ -78,8 +78,7 @@ describe('OutboxWorker', () => {
       .mockRejectedValueOnce(new Error('db unavailable'))
       .mockResolvedValueOnce({ status: 'PENDING' })
     const delays: number[] = []
-    let worker: OutboxWorker
-    worker = new OutboxWorker(dispatcher, {
+    const worker = new OutboxWorker(dispatcher, {
       pollIntervalMs: 5_000,
       errorBackoffMaxMs: 30_000,
       random: () => 0.5,
