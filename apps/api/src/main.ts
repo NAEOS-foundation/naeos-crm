@@ -39,6 +39,7 @@ bootstrapAuthUser()
       worker = new OutboxWorker(dispatcher, {
         pollIntervalMs: outboxPollIntervalMs,
         errorBackoffMaxMs: Number(process.env.OUTBOX_ERROR_BACKOFF_MAX_MS ?? 60_000),
+
         onResult: (result) => {
           if (result.status !== 'PENDING') {
             console.log(JSON.stringify({
@@ -65,6 +66,7 @@ bootstrapAuthUser()
       server.close(() => {
         void (async () => {
           // Keep Prisma connected until an in-flight Outbox dispatch has settled.
+          // Keep Prisma available until any in-flight Outbox dispatch has settled.
           await workerTask?.catch((error) => {
             console.error(JSON.stringify({
               event: 'outbox_worker_shutdown_error',

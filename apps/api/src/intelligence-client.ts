@@ -62,6 +62,23 @@ async function serviceRequest<T>(path: string, body: unknown, requestId: string)
   }
 }
 
+function parseEngineeringAnalysis(value: unknown): EngineeringAnalysis {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new IntelligenceUnavailableError('Intelligence service returned an invalid response')
+  }
+  const result = value as Record<string, unknown>
+  const requiredStrings = ['request_id', 'intent', 'provenance', 'created_at']
+  if (
+    requiredStrings.some((key) => typeof result[key] !== 'string' || result[key] === '') ||
+    !Object.prototype.hasOwnProperty.call(result, 'plan') ||
+    !Object.prototype.hasOwnProperty.call(result, 'runtime_result') ||
+    !Object.prototype.hasOwnProperty.call(result, 'policy_decision')
+  ) {
+    throw new IntelligenceUnavailableError('Intelligence service returned an invalid response')
+  }
+  return result as EngineeringAnalysis
+}
+
 export async function analyzeEngineeringRepository(repository: string, requestId: string): Promise<EngineeringAnalysis> {
   const config = serviceConfig()
   if (!config.allowedRepositories.includes(repository.toLowerCase())) {
@@ -78,4 +95,10 @@ export async function analyzeEngineeringRepository(repository: string, requestId
   }
 
   return serviceRequest<EngineeringAnalysis>(`/intelligence/requests/${encodeURIComponent(accepted.request_id)}/analyze`, {}, `crm-${requestId}`)
+  const result = await serviceRequest<unknown>(
+    `/intelligence/requests/${encodeURIComponent(accepted.request_id)}/analyze`,
+    {},
+    `crm-${requestId}`,
+  )
+  return parseEngineeringAnalysis(result)
 }

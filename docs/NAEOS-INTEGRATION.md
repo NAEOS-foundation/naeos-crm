@@ -6,6 +6,7 @@ The CRM exposes `POST /api/v1/intelligence/engineering-analysis` for admin actor
 
 ```text
 CRM user (admin)
+CRM user (admin/manager)
   → CRM authorization + audit
   → Intelligence API (service JWT: intelligence:write + intelligence:read)
   → NAEOS Core (read-only repository metadata)
