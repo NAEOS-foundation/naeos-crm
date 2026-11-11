@@ -13,7 +13,7 @@ CRM user (admin/manager)
   → analysis result returned to CRM caller
 ```
 
-The service call is disabled until `INTELLIGENCE_API_URL`, `INTELLIGENCE_ALLOWED_REPOSITORIES`, and `INTELLIGENCE_SERVICE_TOKEN` are configured. The token must be a pre-issued JWT trusted by Intelligence's configured JWKS verifier, with only `intelligence:write` and `intelligence:read` scopes. Do not use a user token or place the service token in source control. Intelligence separately requires a pre-issued RS256 service JWT in `NAEOS_CORE_SERVICE_TOKEN`, trusted by Core's JWKS verifier and scoped only to `naeos:repository:read`.
+The service call is disabled until `INTELLIGENCE_API_URL`, `INTELLIGENCE_ALLOWED_REPOSITORIES`, and `INTELLIGENCE_SERVICE_TOKEN` are configured. When using Docker Compose, set `INTELLIGENCE_DOCKER_API_URL` for the URL reachable from the CRM container; its default is `http://host.docker.internal:8080`. The token must be a pre-issued JWT trusted by Intelligence's configured JWKS verifier, with only `intelligence:write` and `intelligence:read` scopes. Do not use a user token or place the service token in source control. Intelligence separately requires a pre-issued RS256 service JWT in `NAEOS_CORE_SERVICE_TOKEN`, trusted by Core's JWKS verifier and scoped only to `naeos:repository:read`.
 
 The request is analysis-only. Intelligence output is a proposal, not authorization or proof that an external action occurred. This endpoint does not trigger CRM GO-Gate actions.
 

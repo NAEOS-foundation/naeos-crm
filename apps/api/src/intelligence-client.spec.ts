@@ -51,6 +51,24 @@ describe('Intelligence engineering analysis client', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('allows the Docker host gateway over HTTP outside production only', async () => {
+    configureService()
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('INTELLIGENCE_API_URL', 'http://host.docker.internal:8080')
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(jsonResponse({ request_id: 'docker-request' }))
+      .mockResolvedValueOnce(jsonResponse(validAnalysis))
+
+    await expect(analyzeEngineeringRepository('NAEOS-foundation/naeos', 'req-docker'))
+      .resolves.toEqual(validAnalysis)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    vi.stubEnv('NODE_ENV', 'production')
+    await expect(analyzeEngineeringRepository('NAEOS-foundation/naeos', 'req-prod'))
+      .rejects.toBeInstanceOf(IntelligenceUnavailableError)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('rejects repositories outside the allowlist before upstream requests', async () => {
     configureService()
     const fetchMock = vi.spyOn(globalThis, 'fetch')

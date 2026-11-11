@@ -50,9 +50,11 @@ services:
       AUTH_BOOTSTRAP_EMAIL: ${AUTH_BOOTSTRAP_EMAIL:-admin@example.com}
       AUTH_BOOTSTRAP_PASSWORD: ${AUTH_BOOTSTRAP_PASSWORD:?Set AUTH_BOOTSTRAP_PASSWORD in .env}
       OUTBOX_WORKER_ENABLED: ${OUTBOX_WORKER_ENABLED:-true}
-      INTELLIGENCE_API_URL: ${INTELLIGENCE_API_URL:-http://host.docker.internal:8080}
+      INTELLIGENCE_API_URL: ${INTELLIGENCE_DOCKER_API_URL:-http://host.docker.internal:8080}
       INTELLIGENCE_ALLOWED_REPOSITORIES: ${INTELLIGENCE_ALLOWED_REPOSITORIES:-}
       INTELLIGENCE_SERVICE_TOKEN: ${INTELLIGENCE_SERVICE_TOKEN:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - '3000:3000'
     depends_on:

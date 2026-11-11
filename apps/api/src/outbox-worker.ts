@@ -14,10 +14,6 @@ export class OutboxWorker {
   private readonly onResult?: OutboxWorkerOptions['onResult']
   private readonly sleep?: OutboxWorkerOptions['sleep']
   private readonly random: () => number
-  private readonly sleep: (ms: number) => Promise<void>
-  private readonly errorBackoffMaxMs: number
-  private readonly random: () => number
-  private consecutiveErrors = 0
   private running = false
   private consecutiveErrors = 0
   private wakeSleep?: () => void
@@ -30,10 +26,6 @@ export class OutboxWorker {
     this.errorBackoffMaxMs = Math.max(options.errorBackoffMaxMs ?? 60_000, this.pollIntervalMs)
     this.onResult = options.onResult
     this.sleep = options.sleep
-    this.pollIntervalMs = options.pollIntervalMs ?? 5_000
-    this.onResult = options.onResult
-    this.errorBackoffMaxMs = Math.max(options.errorBackoffMaxMs ?? 60_000, this.pollIntervalMs)
-    this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
     this.random = options.random ?? Math.random
   }
 
@@ -72,7 +64,6 @@ export class OutboxWorker {
       const timer = setTimeout(finish, ms)
       this.wakeSleep = finish
     })
-    return Math.min(Math.round(baseDelay * (0.5 + this.random())), this.errorBackoffMaxMs)
   }
 
   async start(): Promise<void> {
@@ -84,9 +75,7 @@ export class OutboxWorker {
         const result = await this.runOnce()
         this.consecutiveErrors = 0
         if (this.running && result.status === 'PENDING') await this.wait(this.pollIntervalMs)
-        if (result.status === 'PENDING') await this.sleep(this.pollIntervalMs)
-
-     } catch (error) {
+      } catch (error) {
         this.consecutiveErrors += 1
         const retryInMs = this.nextErrorDelayMs()
         console.error(JSON.stringify({
@@ -95,7 +84,7 @@ export class OutboxWorker {
           retryInMs,
           error: error instanceof Error ? error.message : String(error),
         }))
-        await this.sleep(retryInMs)
+        if (this.running) await this.wait(retryInMs)
       }
     }
   }

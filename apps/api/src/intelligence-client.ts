@@ -29,7 +29,7 @@ function serviceConfig() {
   } catch {
     throw new IntelligenceUnavailableError('Intelligence integration is not configured')
   }
-  const localHTTP = baseURL.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(baseURL.hostname)
+  const localHTTP = baseURL.protocol === 'http:' && (['localhost', '127.0.0.1'].includes(baseURL.hostname) || (process.env.NODE_ENV !== 'production' && baseURL.hostname === 'host.docker.internal'))
   if ((baseURL.protocol !== 'https:' && !localHTTP) || baseURL.username || baseURL.password) {
     throw new IntelligenceUnavailableError('Intelligence integration is not configured')
   }
@@ -94,7 +94,6 @@ export async function analyzeEngineeringRepository(repository: string, requestId
     throw new IntelligenceUnavailableError('Intelligence service returned an invalid request')
   }
 
-  return serviceRequest<EngineeringAnalysis>(`/intelligence/requests/${encodeURIComponent(accepted.request_id)}/analyze`, {}, `crm-${requestId}`)
   const result = await serviceRequest<unknown>(
     `/intelligence/requests/${encodeURIComponent(accepted.request_id)}/analyze`,
     {},
