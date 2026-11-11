@@ -70,6 +70,35 @@ describe('OutboxWorker', () => {
     )
   })
 
+  it('backs off after consecutive errors and resets after a successful poll', async () => {
+    const p = port(null)
+    const dispatcher = new OutboxDispatcher(p, {}, { workerId: 'worker-1' })
+    const dispatchNext = vi.spyOn(dispatcher, 'dispatchNext')
+      .mockRejectedValueOnce(new Error('db unavailable'))
+      .mockRejectedValueOnce(new Error('db unavailable'))
+      .mockResolvedValueOnce({ status: 'PENDING' })
+    const delays: number[] = []
+    let worker: OutboxWorker
+    worker = new OutboxWorker(dispatcher, {
+      pollIntervalMs: 5_000,
+      errorBackoffMaxMs: 30_000,
+      random: () => 0.5,
+      sleep: async (ms) => {
+        delays.push(ms)
+        if (delays.length === 3) worker.stop()
+      },
+    })
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    await worker.start()
+
+    expect(delays).toEqual([5_000, 10_000, 5_000])
+    expect(dispatchNext).toHaveBeenCalledTimes(3)
+    expect(log).toHaveBeenCalledTimes(2)
+    expect(log.mock.calls[0]?.[0]).toContain('"consecutiveErrors":1')
+    expect(log.mock.calls[1]?.[0]).toContain('"consecutiveErrors":2')
+  })
+
   it('can be stopped cleanly', () => {
     const p = port(null)
     const dispatcher = new OutboxDispatcher(p, {}, { workerId: 'worker-1' })
