@@ -12,7 +12,9 @@ docker compose up -d
 The API listens on `http://localhost:3000`. For the optional Intelligence
 integration, Compose uses `INTELLIGENCE_DOCKER_API_URL` (default
 `http://host.docker.internal:8080`) to reach the Intelligence service published
-on the host. The `api` container starts only after PostgreSQL is healthy and
-the migration job succeeds. PostgreSQL and
-Redis use host ports `5434` and `6380` by default, avoiding clashes with the
+on the host. Compose explicitly enables HTTP for this Docker gateway URL; the
+client rejects it by default, so production deployments should use HTTPS and
+leave `INTELLIGENCE_ALLOW_DOCKER_GATEWAY_HTTP` unset. The `api` container
+starts only after PostgreSQL is healthy and the migration job succeeds.
+PostgreSQL and Redis use host ports `5434` and `6380` by default, avoiding clashes with the
 Intelligence stack; override them with `CRM_POSTGRES_PORT` and `CRM_REDIS_PORT`.

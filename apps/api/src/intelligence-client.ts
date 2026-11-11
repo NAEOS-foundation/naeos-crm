@@ -29,7 +29,11 @@ function serviceConfig() {
   } catch {
     throw new IntelligenceUnavailableError('Intelligence integration is not configured')
   }
-  const localHTTP = baseURL.protocol === 'http:' && (['localhost', '127.0.0.1'].includes(baseURL.hostname) || (process.env.NODE_ENV !== 'production' && baseURL.hostname === 'host.docker.internal'))
+  const allowDockerGatewayHTTP = process.env.INTELLIGENCE_ALLOW_DOCKER_GATEWAY_HTTP === 'true'
+  const localHTTP = baseURL.protocol === 'http:' && (
+    ['localhost', '127.0.0.1'].includes(baseURL.hostname) ||
+    (allowDockerGatewayHTTP && baseURL.hostname === 'host.docker.internal')
+  )
   if ((baseURL.protocol !== 'https:' && !localHTTP) || baseURL.username || baseURL.password) {
     throw new IntelligenceUnavailableError('Intelligence integration is not configured')
   }
