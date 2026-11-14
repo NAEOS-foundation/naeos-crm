@@ -145,7 +145,23 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
     next()
   }).catch(() => {
     res.status(401).json(buildErrorResponse('UNAUTHORIZED', 'Invalid, expired, or revoked session', req.requestId))
-  })e?: string; status?: number }
+  })
+}
+
+export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction) {
+  console.error('[API Error]', req.requestId, err.message)
+
+  if (err instanceof HttpError) {
+    res.status(err.status).json(buildErrorResponse(err.code, err.message, req.requestId))
+    return
+  }
+
+  if (err.name === 'ZodError') {
+    res.status(400).json(buildErrorResponse('VALIDATION_ERROR', err.message, req.requestId))
+    return
+  }
+
+  const bodyParserError = err as Error & { type?: string; status?: number }
   if (bodyParserError.type === 'entity.too.large') {
     res.status(413).json(buildErrorResponse('PAYLOAD_TOO_LARGE', 'Request body is too large', req.requestId))
     return
