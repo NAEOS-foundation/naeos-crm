@@ -3,6 +3,8 @@ import type { Request, Response } from 'express'
 import jwt from 'jsonwebtoken'
 import type { AuthenticatedActor } from '@naeos-crm/auth'
 import { prisma } from './prisma-ports'
+
+
 const SESSION_COOKIE = 'naeos_session'
 const SESSION_TTL_SECONDS = 60 * 60 * 8
 const SCRYPT_N = 2 ** 17

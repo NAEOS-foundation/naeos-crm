@@ -11,7 +11,8 @@ export function createApp() {
   const app = express()
 
   const allowedOrigins = new Set(
-    (process.env.CORS_ORIGINS ?? 'https://crm.naeos.dev,https://naeos.dev')
+    [process.env.CORS_ORIGINS ?? 'https://crm.naeos.dev,https://naeos.dev', process.env.CORS_PREVIEW_ORIGINS ?? '']
+      .join(',')
       .split(',')
       .map((origin) => origin.trim())
       .filter(Boolean),
