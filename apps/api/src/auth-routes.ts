@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { AuditService } from '@naeos-crm/audit'
 import { PrismaAuditReadPort, PrismaAuditSink } from './prisma-ports'
 import { asyncHandler } from './middleware'
-import { authenticateCredentials, clearSessionCookie, issueSession, setSessionCookie } from './production-auth'
+import { authenticateCredentials, clearSessionCookie, issueSession, revokeSession, setSessionCookie } from './production-auth'
 
 const router = Router()
 const audit = new AuditService(new PrismaAuditSink(), new PrismaAuditReadPort())
@@ -51,7 +51,7 @@ router.post('/api/v1/auth/login', asyncHandler(async (req, res) => {
     return
   }
 
-  const token = issueSession(actor)
+  const token = await issueSession(actor)
   setSessionCookie(res, token)
   await audit.record({
     actorId: actor.id,
@@ -67,6 +67,7 @@ router.post('/api/v1/auth/login', asyncHandler(async (req, res) => {
 }))
 
 router.post('/api/v1/auth/logout', asyncHandler(async (req, res) => {
+  await revokeSession(req)
   clearSessionCookie(res)
   res.status(204).send()
 }))

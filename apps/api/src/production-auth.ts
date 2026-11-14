@@ -37,9 +37,11 @@ export function verifyPassword(password: string, encoded: string): boolean {
   }
 }
 
-export function issueSession(actor: AuthenticatedActor): string {
+export async function issueSession(actor: AuthenticatedActor): Promise<string> {
+  const user = await prisma.user.findUnique({ where: { id: actor.id }, select: { sessionVersion: true, status: true } })
+  if (!user || user.status !== 'ACTIVE') throw new Error('User is not active')
   return jwt.sign(
-    { sub: actor.id, email: actor.email, roles: actor.roles },
+    { sub: actor.id, email: actor.email, roles: actor.roles, sessionVersion: user.sessionVersion },
     secret(),
     { algorithm: 'HS256', expiresIn: SESSION_TTL_SECONDS, issuer: 'naeos-crm', audience: 'naeos-crm-web' },
   )
@@ -86,4 +88,17 @@ export async function bootstrapAuthUser(): Promise<void> {
     return
   }
   await prisma.user.create({ data: { email, name: 'System Admin', roles: ['ADMIN'], status: 'ACTIVE', passwordHash: hash } })
+}
+
+export async function revokeSession(req: Request): Promise<void> {
+  const token = getSessionToken(req)
+  if (!token) return
+  let decoded: jwt.JwtPayload
+  try {
+    decoded = jwt.verify(token, secret(), { algorithms: ['HS256'], issuer: 'naeos-crm', audience: 'naeos-crm-web' }) as jwt.JwtPayload
+  } catch {
+    return
+  }
+  if (typeof decoded.sub !== 'string') return
+  await prisma.user.updateMany({ where: { id: decoded.sub, status: 'ACTIVE' }, data: { sessionVersion: { increment: 1 } } })
 }
