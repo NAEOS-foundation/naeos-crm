@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken'
 import type { AuthenticatedActor } from '@naeos-crm/auth'
 import { generateRequestId, buildErrorResponse } from '@naeos-crm/shared'
 import { HttpError } from './errors'
+import { prisma } from './prisma-ports'
 
 const AUTH_SECRET = process.env.AUTH_SECRET || process.env.AUTH_DEV_SECRET
 const isProduction = () => (process.env.NODE_ENV ?? 'development') === 'production'
@@ -117,42 +118,34 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
     return
   }
 
-  try {
+  Promise.resolve().then(async () => {
     const decoded = jwt.verify(token, AUTH_SECRET, {
       algorithms: ['HS256'],
       issuer: 'naeos-crm',
       audience: 'naeos-crm-web',
-    }) as { sub: string; email: string; roles?: string[] }
+    }) as { sub: string; email: string; roles?: string[]; sessionVersion?: number }
 
-    if (!decoded.sub || !decoded.email || !Array.isArray(decoded.roles)) {
+    if (!decoded.sub || !decoded.email || !Array.isArray(decoded.roles) || !Number.isInteger(decoded.sessionVersion)) {
       throw new Error('Invalid session claims')
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.sub },
+      select: { email: true, roles: true, status: true, sessionVersion: true },
+    })
+    if (!user || user.status !== 'ACTIVE' || user.sessionVersion !== decoded.sessionVersion) {
+      throw new Error('Session revoked or user inactive')
     }
 
     req.actor = {
       id: decoded.sub,
-      email: decoded.email,
-      roles: decoded.roles as AuthenticatedActor['roles'],
+      email: user.email,
+      roles: user.roles.map((role) => role.toLowerCase() as AuthenticatedActor['roles'][number]),
     }
     next()
-  } catch {
-    res.status(401).json(buildErrorResponse('UNAUTHORIZED', 'Invalid or expired session', req.requestId))
-  }
-}
-
-export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction) {
-  console.error('[API Error]', req.requestId, err.message)
-
-  if (err instanceof HttpError) {
-    res.status(err.status).json(buildErrorResponse(err.code, err.message, req.requestId))
-    return
-  }
-
-  if (err.name === 'ZodError') {
-    res.status(400).json(buildErrorResponse('VALIDATION_ERROR', err.message, req.requestId))
-    return
-  }
-
-  const bodyParserError = err as Error & { type?: string; status?: number }
+  }).catch(() => {
+    res.status(401).json(buildErrorResponse('UNAUTHORIZED', 'Invalid, expired, or revoked session', req.requestId))
+  })e?: string; status?: number }
   if (bodyParserError.type === 'entity.too.large') {
     res.status(413).json(buildErrorResponse('PAYLOAD_TOO_LARGE', 'Request body is too large', req.requestId))
     return
