@@ -44,7 +44,7 @@ describe('GoGateService approval separation of duties', () => {
     await expect(
       service.approve(
         current.id,
-        { id: current.requestedBy, roles: ['ADMIN'] },
+        { id: 'requester-1', roles: ['ADMIN'] },
         { meta: { requestId: 'req-self-approval', source: 'test' } },
       ),
     ).rejects.toMatchObject({
