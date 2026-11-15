@@ -20,6 +20,8 @@ const membership: ResolvedTenantMembership = {
   principal,
   ...scope,
   status: 'active',
+  organizationStatus: 'active',
+  workspaceStatus: 'active',
   roleKeys: ['workspace_admin'],
 }
 
@@ -97,6 +99,22 @@ describe('authorizeTenantRequest', () => {
       deps.evaluator,
     )
     expect(result.reason).toBe('membership-not-active')
+    expect(deps.evaluator.allows).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['suspended organization', { organizationStatus: 'suspended' as const }],
+    ['pending organization', { organizationStatus: 'pending' as const }],
+    ['suspended workspace', { workspaceStatus: 'suspended' as const }],
+    ['pending workspace', { workspaceStatus: 'pending' as const }],
+  ])('denies an inactive tenant lifecycle: %s', async (_label, lifecycle) => {
+    const deps = dependencies({ ...membership, ...lifecycle })
+    const result = await authorizeTenantRequest(
+      { principal, scope, capability: 'crm:company:read' },
+      deps.resolver,
+      deps.evaluator,
+    )
+    expect(result.reason).toBe('tenant-not-active')
     expect(deps.evaluator.allows).not.toHaveBeenCalled()
   })
 
