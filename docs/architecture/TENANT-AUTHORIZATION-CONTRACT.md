@@ -28,14 +28,15 @@ Membership is resolved server-side using the issuer-qualified principal and exac
 2. Normalize the canonical principal as `(iss, sub)`; do not derive authorization from `user_metadata`, generic `authenticated` role, email match, or CRM legacy role alone.
 3. Validate organization/workspace UUIDs and request capability.
 4. Resolve an active membership for that exact principal and scope from a trusted server-side membership source.
-5. Verify membership's principal, organization, and workspace match the requested values exactly.
-6. Evaluate a server-controlled capability policy against membership role keys and policy context.
-7. Deny by default for missing membership, inactive status, mismatch, insufficient capability, malformed scope, or unavailable authorization dependency.
-8. Emit a domain-owned audit event with actor issuer/subject, organization/workspace, capability/action, resource, request/correlation ID, outcome, reason, timestamp, and schema version. Do not log bearer tokens.
+5. Verify membership's principal, organization, and workspace match the requested values exactly; do not silently widen a workspace request to an organization-level membership.
+6. Verify both the organization and requested workspace lifecycle states are `active`; `pending` and `suspended` tenants are denied even if a membership row remains active.
+7. Evaluate a server-controlled capability policy against membership role keys and policy context.
+8. Deny by default for missing membership, inactive membership or tenant, mismatch, insufficient capability, malformed scope, or unavailable authorization dependency.
+9. Emit a domain-owned audit event with actor issuer/subject, organization/workspace, capability/action, resource, request/correlation ID, outcome, reason, timestamp, and schema version. Do not log bearer tokens.
 
 ## CRM TypeScript contract
 
-Package `@naeos-crm/auth` defines `CanonicalPrincipal`, `TenantScope`, `ResolvedTenantMembership`, `TenantMembershipResolver`, `TenantPolicyEvaluator`, and `authorizeTenantRequest`.
+Package `@naeos-crm/auth` defines `CanonicalPrincipal`, `TenantScope`, `ResolvedTenantMembership`, `TenantLifecycleStatus`, `TenantMembershipResolver`, `TenantPolicyEvaluator`, and `authorizeTenantRequest`. The resolved membership must carry organization and workspace lifecycle states; the orchestration denies unless both are `active`.
 
 The function is a fail-closed policy orchestration boundary. It does not yet connect to the Supabase private identity schema, and its interfaces do not authorize requests unless a trusted resolver and policy evaluator are supplied. The proposed Core identity schema stores role-to-capability grants in `role_capabilities`; the membership-resolution connection should use the dedicated read-only `naeos_identity_runtime_login` group. Identity lifecycle writes require the separately credentialed `naeos_identity_admin_login` group. Audit events remain append-only. Existing CRM `admin/manager/member` roles remain legacy application roles; they are not globally tenant-scoped permissions.
 
