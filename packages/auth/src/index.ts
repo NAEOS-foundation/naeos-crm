@@ -279,6 +279,9 @@ export async function authorizeTenantRequest(
   resolver: TenantMembershipResolver,
   evaluator: TenantPolicyEvaluator,
 ): Promise<TenantAuthorizationDecision> {
+  if (!request || !request.principal || !request.scope) {
+    return { allow: false, reason: 'invalid-principal' }
+  }
   if (!isNonBlank(request.principal.issuer) || !isNonBlank(request.principal.subject)) {
     return { allow: false, reason: 'invalid-principal' }
   }
