@@ -218,12 +218,16 @@ export interface TenantScope {
 
 export type TenantMembershipStatus = 'active' | 'invited' | 'suspended' | 'revoked'
 
+export type TenantLifecycleStatus = 'active' | 'pending' | 'suspended'
+
 export interface ResolvedTenantMembership {
   membershipId: string
   principal: CanonicalPrincipal
   organizationId: string
   workspaceId: string
   status: TenantMembershipStatus
+  organizationStatus: TenantLifecycleStatus
+  workspaceStatus: TenantLifecycleStatus
   roleKeys: readonly string[]
 }
 
@@ -253,6 +257,7 @@ export interface TenantAuthorizationDecision {
     | 'membership-principal-mismatch'
     | 'membership-scope-mismatch'
     | 'membership-not-active'
+    | 'tenant-not-active'
     | 'capability-denied'
     | 'authorization-dependency-failed'
     | 'capability-granted'
@@ -303,6 +308,9 @@ export async function authorizeTenantRequest(
     }
     if (membership.status !== 'active') {
       return { allow: false, reason: 'membership-not-active' }
+    }
+    if (membership.organizationStatus !== 'active' || membership.workspaceStatus !== 'active') {
+      return { allow: false, reason: 'tenant-not-active' }
     }
 
     if (!(await evaluator.allows(membership, request.capability))) {
