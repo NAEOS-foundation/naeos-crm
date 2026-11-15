@@ -3,6 +3,7 @@ import type { Request, Response } from 'express'
 import jwt from 'jsonwebtoken'
 import type { AuthenticatedActor } from '@naeos-crm/auth'
 import { prisma } from './prisma-ports'
+import { HttpError } from './errors'
 const SESSION_COOKIE = 'naeos_session'
 const SESSION_TTL_SECONDS = 60 * 60 * 8
 const SCRYPT_N = 2 ** 17
@@ -73,6 +74,108 @@ export async function authenticateCredentials(email: string, password: string): 
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } })
   if (!user || user.status !== 'ACTIVE' || !user.passwordHash || !verifyPassword(password, user.passwordHash)) return null
   return { id: user.id, email: user.email, roles: user.roles.map((role) => role.toLowerCase() as AuthenticatedActor['roles'][number]) }
+}
+
+export interface VerifiedSupabaseUser {
+  id: string
+  email: string
+}
+
+export async function verifySupabaseAccessToken(accessToken: string): Promise<VerifiedSupabaseUser | null> {
+  if (!accessToken || accessToken.length > 8192) return null
+
+  const supabaseUrl = process.env.SUPABASE_URL?.trim()
+  const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY?.trim() || process.env.SUPABASE_ANON_KEY?.trim()
+  if (!supabaseUrl || !publishableKey) return null
+
+  let endpoint: URL
+  try {
+    const base = new URL(supabaseUrl)
+    if (base.protocol !== 'https:') return null
+    endpoint = new URL('/auth/v1/user', base)
+  } catch {
+    return null
+  }
+
+  let response: Awaited<ReturnType<typeof fetch>>
+  try {
+    response = await fetch(endpoint, {
+      method: 'GET',
+      headers: {
+        apikey: publishableKey,
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+      redirect: 'error',
+      signal: AbortSignal.timeout(5000),
+    })
+  } catch {
+    throw new HttpError(503, 'SUPABASE_AUTH_UNAVAILABLE', 'Supabase Auth verification unavailable')
+  }
+
+  if (!response.ok) return null
+
+  let authUser: { id?: unknown; email?: unknown }
+  try {
+    authUser = await response.json() as { id?: unknown; email?: unknown }
+  } catch {
+    return null
+  }
+
+  if (typeof authUser.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(authUser.id)) {
+    return null
+  }
+  if (typeof authUser.email !== 'string' || !authUser.email.includes('@')) return null
+
+  return { id: authUser.id, email: authUser.email }
+}
+
+export async function authenticateSupabaseAccessToken(accessToken: string): Promise<AuthenticatedActor | null> {
+  const authUser = await verifySupabaseAccessToken(accessToken)
+  if (!authUser) return null
+
+  const user = await prisma.user.findUnique({ where: { supabaseAuthUserId: authUser.id } })
+  if (!user || user.status !== 'ACTIVE' || user.email.toLowerCase() !== authUser.email.toLowerCase()) return null
+
+  return {
+    id: user.id,
+    email: user.email,
+    roles: user.roles.map((role) => role.toLowerCase() as AuthenticatedActor['roles'][number]),
+  }
+}
+
+export async function linkSupabaseIdentity(
+  accessToken: string,
+  email: string,
+  password: string,
+): Promise<AuthenticatedActor | null> {
+  const authUser = await verifySupabaseAccessToken(accessToken)
+  if (!authUser) return null
+
+  const actor = await authenticateCredentials(email, password)
+  if (!actor || actor.email.toLowerCase() !== authUser.email.toLowerCase()) return null
+
+  const existing = await prisma.user.findUnique({
+    where: { id: actor.id },
+    select: { supabaseAuthUserId: true },
+  })
+  if (!existing) return null
+  if (existing.supabaseAuthUserId === authUser.id) return actor
+  if (existing.supabaseAuthUserId !== null) return null
+
+  try {
+    const linked = await prisma.user.updateMany({
+      where: { id: actor.id, supabaseAuthUserId: null },
+      data: { supabaseAuthUserId: authUser.id },
+    })
+    return linked.count === 1 ? actor : null
+  } catch (error) {
+    const code = typeof error === 'object' && error !== null && 'code' in error
+      ? (error as { code?: unknown }).code
+      : undefined
+    if (code === 'P2002') return null
+    throw error
+  }
 }
 
 export async function bootstrapAuthUser(): Promise<void> {
