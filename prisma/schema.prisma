@@ -173,8 +173,9 @@ enum OutboxStatus {
 }
 
 model User {
-  id           String     @id @default(cuid())
-  email        String     @unique
+  id                 String     @id @default(cuid())
+  supabaseAuthUserId String?    @unique @db.Uuid
+  email              String     @unique
   name         String
   roles        UserRole[]
   status       UserStatus @default(ACTIVE)
