@@ -37,7 +37,7 @@ Membership is resolved server-side using the issuer-qualified principal and exac
 
 Package `@naeos-crm/auth` defines `CanonicalPrincipal`, `TenantScope`, `ResolvedTenantMembership`, `TenantMembershipResolver`, `TenantPolicyEvaluator`, and `authorizeTenantRequest`.
 
-The function is a fail-closed policy orchestration boundary. It does not yet connect to the Supabase private identity schema, and its interfaces do not authorize requests unless a trusted resolver and policy evaluator are supplied. Existing CRM `admin/manager/member` roles remain legacy application roles; they are not globally tenant-scoped permissions.
+The function is a fail-closed policy orchestration boundary. It does not yet connect to the Supabase private identity schema, and its interfaces do not authorize requests unless a trusted resolver and policy evaluator are supplied. The proposed Core identity schema stores role-to-capability grants in `role_capabilities`; the membership-resolution connection should use the dedicated read-only `naeos_identity_runtime_login` group. Identity lifecycle writes require the separately credentialed `naeos_identity_admin_login` group. Audit events remain append-only. Existing CRM `admin/manager/member` roles remain legacy application roles; they are not globally tenant-scoped permissions.
 
 ## Scope rules
 
