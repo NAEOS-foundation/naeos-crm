@@ -8,7 +8,7 @@ import {
 } from '@naeos-crm/auth'
 
 const principal: CanonicalPrincipal = {
-  issuer: 'https://oruykkehukoiipldzcvc.supabase.co/auth/v1',
+  issuer: 'https://kqmhpsftijskesjdovjm.supabase.co/auth/v1',
   subject: '11111111-1111-4111-8111-111111111111',
 }
 const scope = {
