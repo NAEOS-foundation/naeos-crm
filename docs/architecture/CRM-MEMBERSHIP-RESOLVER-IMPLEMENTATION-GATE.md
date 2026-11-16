@@ -86,3 +86,12 @@ Use a separate Node-compatible PostgreSQL pool for the identity schema in the Ra
 7. Remain unwired to request authorization until verified Supabase JWT principal handling, staging login-role provisioning, exact schema query validation, and tenant resource ownership gates pass.
 
 No PostgreSQL driver or connection secret has been added yet. Before selecting and pinning a driver, inspect the current package lock and test compatibility with the repository's Node 24 build. The Railway production and preview endpoints in the Worker config are evidence of routing only; they are not authorization to change Railway variables or deploy services.
+
+
+### Identity-schema contract details confirmed from the Core migration
+
+- `naeos_identity.memberships` stores the provider issuer as text and the provider subject in `user_id UUID`. The API must validate that the verified JWT `sub` is a UUID before querying; it must not map by email or coerce an arbitrary subject.
+- Membership uniqueness is `(organization_id, workspace_id, issuer, user_id)` with NULLS NOT DISTINCT. Organization-level memberships (`workspace_id IS NULL`) are a distinct scope. For this CRM contract, a workspace authorization request must resolve only the exact requested workspace membership; an organization-level membership must not be silently widened into workspace access.
+- Role assignment scope is enforced by a database trigger: organization roles belong to organization-level memberships, and workspace roles belong to workspace-level memberships. The resolver must preserve this distinction.
+- The migration seeds only `organization_admin` and `workspace_admin`, each with `naeos.identity.audit.read`. No `crm:*` capabilities are currently seeded. Consequently, every CRM capability request must remain denied until an approved identity-administration workflow defines and assigns the required capabilities. Do not insert capabilities from the runtime connection.
+- The RLS policies are context-sensitive and use the four transaction-local GUCs. The adapter must set all four before any identity SELECT, including role/capability lookup, and must keep all reads in the same transaction so pooled connections cannot leak tenant context.
