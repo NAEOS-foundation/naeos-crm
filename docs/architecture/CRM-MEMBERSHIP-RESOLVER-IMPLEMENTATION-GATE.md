@@ -61,3 +61,28 @@ This is a deliberate fail-closed gate, not a reason to fall back to CRM legacy r
 - Approved tenant mapping and CRM ownership/backfill plan.
 
 Until all evidence exists, the resolver remains an interface only, PR #45 remains Draft, and no Production configuration or data is changed.
+
+
+## Additional runtime findings (2026-11-17)
+
+Repository inspection confirms the deployment boundary and narrows the database-adapter choice:
+
+- The root `Dockerfile` builds the API in `node:24.21.0-bookworm-slim`, generates the Prisma client, and starts `apps/api/dist/main.js`. This is a Node.js service, not a Cloudflare Worker runtime.
+- `wrangler.jsonc` is for the CRM web Worker and proxies API traffic through `API_ORIGIN`. Its current configured production origin and preview origin are Railway API URLs. The web Worker should not own the identity database connection.
+- `apps/api/src/main.ts` starts the Express API and Prisma-backed outbox worker. The current API process has one Prisma client and no identity-pool lifecycle or shutdown hook.
+- `apps/api/src/app.ts` exposes `/ready` based only on the CRM Prisma database. Identity readiness must not silently become a mandatory dependency until a rollout mode and rollback behavior are explicitly designed.
+- `apps/api/src/middleware.ts` still verifies only the local HS256 CRM session. The canonical Supabase principal cannot be populated from the current actor/session.
+
+### Adapter decision
+
+Use a separate Node-compatible PostgreSQL pool for the identity schema in the Railway-hosted API, rather than connecting from the Cloudflare web Worker or reusing the CRM Prisma connection. Keep the pool lazy and disabled when no dedicated staging identity connection is configured. The adapter must:
+
+1. Require an explicit staging-only identity connection variable (proposed name: `NAEOS_IDENTITY_DATABASE_URL`); never fall back to `DATABASE_URL`.
+2. Use TLS with certificate verification and bounded pool size/timeouts.
+3. Acquire one client and run a transaction for the entire membership + capability resolution.
+4. Set all tenant GUCs with parameterized `set_config(key, value, true)` calls inside that transaction; run only fixed, parameterized SELECT statements.
+5. Roll back on every error and release the client in `finally`; expose no raw SQL input.
+6. Close the pool during API shutdown.
+7. Remain unwired to request authorization until verified Supabase JWT principal handling, staging login-role provisioning, exact schema query validation, and tenant resource ownership gates pass.
+
+No PostgreSQL driver or connection secret has been added yet. Before selecting and pinning a driver, inspect the current package lock and test compatibility with the repository's Node 24 build. The Railway production and preview endpoints in the Worker config are evidence of routing only; they are not authorization to change Railway variables or deploy services.
