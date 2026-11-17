@@ -162,7 +162,7 @@ export function CompaniesPage() {
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
           <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
-            {editing ? 'Save changes' : 'Create company'}
+            {isSubmitting ? 'Saving…' : editing ? 'Save changes' : 'Create company'}
           </button>
         </Modal>
       )}

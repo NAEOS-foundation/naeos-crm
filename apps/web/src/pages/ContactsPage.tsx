@@ -152,7 +152,7 @@ export function ContactsPage() {
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
           <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving…' : 'Create '}
+            {isSubmitting ? 'Saving…' : 'Create contact'}
           </button>
         </Modal>
       )}

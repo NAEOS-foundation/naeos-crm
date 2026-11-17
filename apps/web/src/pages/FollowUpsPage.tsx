@@ -150,7 +150,7 @@ export function FollowUpsPage() {
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
           <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving…' : 'Create up'}
+            {isSubmitting ? 'Saving…' : 'Create follow-up'}
           </button>
         </Modal>
       )}

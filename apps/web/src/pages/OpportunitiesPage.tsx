@@ -162,7 +162,7 @@ export function OpportunitiesPage() {
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
           <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving…' : 'Create nity'}
+            {isSubmitting ? 'Saving…' : 'Create opportunity'}
           </button>
         </Modal>
       )}

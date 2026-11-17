@@ -139,7 +139,7 @@ export function ContributorsPage() {
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
           <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving…' : 'Create utor'}
+            {isSubmitting ? 'Saving…' : 'Create contributor'}
           </button>
         </Modal>
       )}

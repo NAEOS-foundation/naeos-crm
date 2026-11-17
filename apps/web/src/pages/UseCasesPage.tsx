@@ -130,7 +130,7 @@ export function UseCasesPage() {
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
           <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving…' : 'Create e'}
+            {isSubmitting ? 'Saving…' : 'Create use case'}
           </button>
         </Modal>
       )}
