@@ -927,12 +927,11 @@ export class FollowUpFacade {
   private async assertFollowUpAccess(activityId: string, ownerId: string | undefined, actor: AuditMetadata['actor']) {
     if (!actor) throw forbidden('No authenticated actor')
     if (isPrivileged(actor)) return
+    assertSelfScoped(actor, 'ownerId', ownerId)
     const activity = await this.activityReadPort.findById(activityId)
     if (activity?.companyId) {
       await assertCompanyAccess(this.companyReadPort, actor, activity.companyId)
-      return
     }
-    assertSelfScoped(actor, 'ownerId', ownerId)
   }
 
   async getFollowUp(id: string) {
