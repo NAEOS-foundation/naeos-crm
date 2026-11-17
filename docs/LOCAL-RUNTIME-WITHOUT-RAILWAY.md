@@ -45,7 +45,7 @@ This setup runs the CRM API and its development PostgreSQL database locally. It 
    npm run dev:web
    ```
 
-   Open http://localhost:5173. The web app's API URL defaults to http://localhost:3000; confirm the actual frontend configuration if your local checkout overrides it.
+   Open http://localhost:5173. Vite proxies same-origin `/api` requests to the local API at http://localhost:3000. With no `VITE_SUPABASE_*` variables set, the login page uses the local CRM bootstrap account; when Supabase frontend configuration is present, the existing Supabase Auth flow remains active.
 
 ## Safety boundaries
 
