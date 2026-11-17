@@ -1534,3 +1534,107 @@ describe('Internal record ownership authorization', () => {
     expect(update).not.toHaveBeenCalled()
   })
 })
+
+
+describe('Internal CRM ownership enforcement for related records', () => {
+  const memberMeta = {
+    actorId: 'member-1',
+    actor: { id: 'member-1', roles: ['member'] as string[] },
+  }
+
+  it('prevents members from updating activities owned by another member, even within their company', async () => {
+    const update = vi.fn()
+    const activityPort = {
+      async findById() {
+        return { id: 'activity-1', ownerId: 'member-2', companyId: 'company-1' }
+      },
+      update,
+    } as any
+    const companyPort = {
+      async findById() {
+        return { id: 'company-1', ownerId: memberMeta.actor.id }
+      },
+    } as any
+    const facade = new ActivityFacade(activityPort, createAuditService(), companyPort)
+
+    await expect(facade.updateActivity('activity-1', { summary: 'Changed' }, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('prevents members from updating tasks assigned to another member, even within their company', async () => {
+    const update = vi.fn()
+    const taskPort = {
+      async findById() {
+        return { id: 'task-1', assigneeId: 'member-2', companyId: 'company-1' }
+      },
+      update,
+    } as any
+    const companyPort = {
+      async findById() {
+        return { id: 'company-1', ownerId: memberMeta.actor.id }
+      },
+    } as any
+    const facade = new TaskFacade(taskPort, createAuditService(), companyPort)
+
+    await expect(facade.updateTask('task-1', { subject: 'Changed' }, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('prevents members from taking over another member campaign by changing ownerId', async () => {
+    const update = vi.fn()
+    const campaignPort = {
+      async findById() {
+        return { id: 'campaign-1', ownerId: 'member-2' }
+      },
+      update,
+    } as any
+    const facade = new CampaignFacade(campaignPort, createAuditService())
+
+    await expect(facade.updateCampaign('campaign-1', { ownerId: memberMeta.actor.id } as any, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('prevents members from taking over another member follow-up by changing ownerId', async () => {
+    const update = vi.fn()
+    const followUpPort = {
+      async findById() {
+        return { id: 'follow-up-1', activityId: 'activity-1', ownerId: 'member-2' }
+      },
+      update,
+    } as any
+    const activityPort = {
+      async findById() {
+        return { id: 'activity-1', ownerId: 'member-2' }
+      },
+    } as any
+    const companyPort = { async findById() { return null } } as any
+    const facade = new FollowUpFacade(followUpPort, createAuditService(), activityPort, companyPort)
+
+    await expect(facade.updateFollowUp('follow-up-1', { ownerId: memberMeta.actor.id } as any, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('prevents members from moving another member campaign step into their own campaign', async () => {
+    const update = vi.fn()
+    const stepPort = {
+      async findById() {
+        return { id: 'step-1', campaignId: 'campaign-other' }
+      },
+      update,
+    } as any
+    const campaignPort = {
+      async findById(id: string) {
+        return { id, ownerId: id === 'campaign-other' ? 'member-2' : memberMeta.actor.id }
+      },
+    } as any
+    const facade = new CampaignStepFacade(stepPort, campaignPort, createAuditService())
+
+    await expect(facade.updateStep('step-1', { campaignId: 'campaign-mine' } as any, memberMeta))
+      .rejects.toThrow('You do not have access to this campaign')
+    expect(update).not.toHaveBeenCalled()
+  })
+})
