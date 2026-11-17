@@ -1618,6 +1618,31 @@ describe('Internal CRM ownership enforcement for related records', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
+  it('prevents members from editing another owner follow-up attached to their company activity', async () => {
+    const update = vi.fn()
+    const followUpPort = {
+      async findById() {
+        return { id: 'follow-up-2', activityId: 'activity-2', ownerId: 'member-2' }
+      },
+      update,
+    } as any
+    const activityPort = {
+      async findById() {
+        return { id: 'activity-2', ownerId: 'member-2', companyId: 'company-1' }
+      },
+    } as any
+    const companyPort = {
+      async findById() {
+        return { id: 'company-1', ownerId: memberMeta.actor.id }
+      },
+    } as any
+    const facade = new FollowUpFacade(followUpPort, createAuditService(), activityPort, companyPort)
+
+    await expect(facade.updateFollowUp('follow-up-2', { status: 'COMPLETED' } as any, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    expect(update).not.toHaveBeenCalled()
+  })
+
   it('prevents members from moving another member campaign step into their own campaign', async () => {
     const update = vi.fn()
     const stepPort = {
