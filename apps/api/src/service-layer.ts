@@ -412,10 +412,9 @@ export class ActivityFacade {
   }
 
   async createActivity(input: Omit<Activity, 'id' | 'createdAt'>, auditMeta: AuditMetadata) {
+    assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
     if (input.companyId) {
       await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId)
-    } else {
-      assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
     }
     const activity = await this.activityReadPort.create(input)
     await auditSafely(this.audit, {
@@ -432,11 +431,11 @@ export class ActivityFacade {
 
   async updateActivity(id: string, input: Partial<Activity>, auditMeta: AuditMetadata) {
     const previous = await this.activityReadPort.findById(id)
+    if (previous) assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
+    if (input.ownerId) assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
     const targetCompanyId = input.companyId ?? previous?.companyId
     if (targetCompanyId) {
       await assertCompanyAccess(this.companyReadPort, auditMeta.actor, targetCompanyId)
-    } else {
-      assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId ?? previous?.ownerId)
     }
     const activity = await this.activityReadPort.update(id, input)
 
@@ -457,10 +456,9 @@ export class ActivityFacade {
 
   async deleteActivity(id: string, auditMeta: AuditMetadata) {
     const previous = await this.activityReadPort.findById(id)
+    if (previous) assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
     if (previous?.companyId) {
       await assertCompanyAccess(this.companyReadPort, auditMeta.actor, previous.companyId)
-    } else if (previous) {
-      assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
     }
     const deleted = await this.activityReadPort.delete(id)
 
@@ -500,10 +498,9 @@ export class TaskFacade {
   }
 
   async createTask(input: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    assertSelfScoped(auditMeta.actor, 'assigneeId', input.assigneeId)
     if (input.companyId) {
       await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId)
-    } else {
-      assertSelfScoped(auditMeta.actor, 'assigneeId', input.assigneeId)
     }
     const task = await this.taskReadPort.create(input)
     await auditSafely(this.audit, {
@@ -520,11 +517,11 @@ export class TaskFacade {
 
   async updateTask(id: string, input: Partial<Task>, auditMeta: AuditMetadata) {
     const previous = await this.taskReadPort.findById(id)
+    if (previous) assertSelfScoped(auditMeta.actor, 'assigneeId', previous.assigneeId)
+    if (input.assigneeId) assertSelfScoped(auditMeta.actor, 'assigneeId', input.assigneeId)
     const targetCompanyId = input.companyId ?? previous?.companyId
     if (targetCompanyId) {
       await assertCompanyAccess(this.companyReadPort, auditMeta.actor, targetCompanyId)
-    } else {
-      assertSelfScoped(auditMeta.actor, 'assigneeId', input.assigneeId ?? previous?.assigneeId)
     }
     const task = await this.taskReadPort.update(id, input)
 
@@ -545,10 +542,9 @@ export class TaskFacade {
 
   async deleteTask(id: string, auditMeta: AuditMetadata) {
     const previous = await this.taskReadPort.findById(id)
+    if (previous) assertSelfScoped(auditMeta.actor, 'assigneeId', previous.assigneeId)
     if (previous?.companyId) {
       await assertCompanyAccess(this.companyReadPort, auditMeta.actor, previous.companyId)
-    } else if (previous) {
-      assertSelfScoped(auditMeta.actor, 'assigneeId', previous.assigneeId)
     }
     const deleted = await this.taskReadPort.delete(id)
 
@@ -795,7 +791,8 @@ export class CampaignFacade {
 
   async updateCampaign(id: string, input: Partial<Campaign>, auditMeta: AuditMetadata) {
     const previous = await this.campaignReadPort.findById(id)
-    assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId ?? previous?.ownerId)
+    if (previous) assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
+    if (input.ownerId) assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
     const campaign = await this.campaignReadPort.update(id, input)
 
     if (!campaign) return null
@@ -964,7 +961,10 @@ export class FollowUpFacade {
 
   async updateFollowUp(id: string, input: Partial<FollowUp>, auditMeta: AuditMetadata) {
     const previous = await this.followUpReadPort.findById(id)
-    await this.assertFollowUpAccess(input.activityId ?? previous?.activityId ?? '', input.ownerId ?? previous?.ownerId, auditMeta.actor)
+    if (previous) await this.assertFollowUpAccess(previous.activityId, previous.ownerId, auditMeta.actor)
+    if (input.activityId || input.ownerId) {
+      await this.assertFollowUpAccess(input.activityId ?? previous?.activityId ?? '', input.ownerId ?? previous?.ownerId, auditMeta.actor)
+    }
     const followUp = await this.followUpReadPort.update(id, input)
 
     if (!followUp) return null
