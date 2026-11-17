@@ -42,7 +42,7 @@ describe('Supabase browser authentication', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(signInWithSupabase('founder@example.com', 'password')).rejects.toThrow(
-      'Supabase Auth is not configured',
+      'Supabase Auth configuration is incomplete',
     )
     expect(fetchMock).not.toHaveBeenCalled()
   })
