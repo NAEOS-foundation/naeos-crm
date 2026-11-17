@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { useAuth } from './auth'
 import { can } from './permissions'
@@ -32,27 +32,62 @@ interface NavItem {
   action: string
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { to: '/', label: 'Dashboard', end: true, resource: 'dashboard', action: 'read' },
-  { to: '/companies', label: 'Companies', resource: 'company', action: 'read' },
-  { to: '/contacts', label: 'Contacts', resource: 'contact', action: 'read' },
-  { to: '/leads', label: 'Leads', resource: 'lead', action: 'read' },
-  { to: '/opportunities', label: 'Opportunities', resource: 'opportunity', action: 'read' },
-  { to: '/pipeline', label: 'Pipeline', resource: 'pipeline', action: 'read' },
-  { to: '/campaigns', label: 'Campaigns', resource: 'campaign', action: 'read' },
-  { to: '/follow-ups', label: 'Follow-ups', resource: 'follow-up', action: 'read' },
-  { to: '/analytics', label: 'Analytics', resource: 'analytics', action: 'read' },
-  { to: '/contributors', label: 'Contributors', resource: 'contributor', action: 'read' },
-  { to: '/partners', label: 'Partners', resource: 'partner', action: 'read' },
-  { to: '/communities', label: 'Communities', resource: 'community', action: 'read' },
-  { to: '/investors', label: 'Investors', resource: 'investor', action: 'read' },
-  { to: '/use-cases', label: 'Use Cases', resource: 'use-case', action: 'read' },
-  { to: '/go-gate', label: 'GO-Gate', resource: 'go-gate', action: 'read' },
-  { to: '/policy', label: 'Policy', resource: 'policy', action: 'read' },
-  { to: '/activities', label: 'Activities', resource: 'activity', action: 'read' },
-  { to: '/tasks', label: 'Tasks', resource: 'task', action: 'read' },
-  { to: '/users', label: 'Users', resource: 'user', action: 'read' },
-  { to: '/audit', label: 'Audit', resource: 'audit', action: 'read' },
+interface NavGroup {
+  label: string
+  items: NavItem[]
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Workspace',
+    items: [
+      { to: '/', label: 'Dashboard', end: true, resource: 'dashboard', action: 'read' },
+      { to: '/tasks', label: 'Tasks', resource: 'task', action: 'read' },
+      { to: '/activities', label: 'Activities', resource: 'activity', action: 'read' },
+    ],
+  },
+  {
+    label: 'Relationships',
+    items: [
+      { to: '/companies', label: 'Companies', resource: 'company', action: 'read' },
+      { to: '/contacts', label: 'Contacts', resource: 'contact', action: 'read' },
+      { to: '/leads', label: 'Leads', resource: 'lead', action: 'read' },
+    ],
+  },
+  {
+    label: 'Revenue',
+    items: [
+      { to: '/opportunities', label: 'Opportunities', resource: 'opportunity', action: 'read' },
+      { to: '/pipeline', label: 'Pipeline', resource: 'pipeline', action: 'read' },
+      { to: '/campaigns', label: 'Campaigns', resource: 'campaign', action: 'read' },
+      { to: '/follow-ups', label: 'Follow-ups', resource: 'follow-up', action: 'read' },
+    ],
+  },
+  {
+    label: 'Ecosystem',
+    items: [
+      { to: '/contributors', label: 'Contributors', resource: 'contributor', action: 'read' },
+      { to: '/partners', label: 'Partners', resource: 'partner', action: 'read' },
+      { to: '/communities', label: 'Communities', resource: 'community', action: 'read' },
+      { to: '/investors', label: 'Investors', resource: 'investor', action: 'read' },
+      { to: '/use-cases', label: 'Use Cases', resource: 'use-case', action: 'read' },
+    ],
+  },
+  {
+    label: 'Governance',
+    items: [
+      { to: '/go-gate', label: 'GO-Gate', resource: 'go-gate', action: 'read' },
+      { to: '/policy', label: 'Policy', resource: 'policy', action: 'read' },
+      { to: '/audit', label: 'Audit', resource: 'audit', action: 'read' },
+    ],
+  },
+  {
+    label: 'Administration',
+    items: [
+      { to: '/analytics', label: 'Analytics', resource: 'analytics', action: 'read' },
+      { to: '/users', label: 'Users', resource: 'user', action: 'read' },
+    ],
+  },
 ]
 
 function RequirePermission({
@@ -73,6 +108,7 @@ function RequirePermission({
 
 export function App() {
   const { actor, logout, isAuthenticated } = useAuth()
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   if (!isAuthenticated) {
     return (
@@ -85,25 +121,52 @@ export function App() {
 
   return (
     <div className="layout">
-      <aside className="sidebar">
+      {mobileNavOpen && (
+        <button
+          type="button"
+          className="sidebar-backdrop"
+          aria-label="Close navigation"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+      <aside id="crm-sidebar" className={`sidebar${mobileNavOpen ? ' sidebar-open' : ''}`}>
         <div className="sidebar-brand">
           <img src="/naeos-brand-mark.svg" alt="NAEOS" className="sidebar-brand-mark" />
           <div className="sidebar-brand-name">
             <strong>NAEOS</strong>
             <span>CRM</span>
           </div>
+          <button
+            type="button"
+            className="sidebar-close"
+            aria-label="Close navigation"
+            onClick={() => setMobileNavOpen(false)}
+          >
+            ×
+          </button>
         </div>
-        <nav>
-          {NAV_ITEMS.filter((item) => can(actor, item.resource, item.action)).map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}
-            >
-              {item.label}
-            </NavLink>
-          ))}
+        <nav className="sidebar-nav" aria-label="CRM navigation">
+          {NAV_GROUPS.map((group) => {
+            const visibleItems = group.items.filter((item) => can(actor, item.resource, item.action))
+            if (visibleItems.length === 0) return null
+
+            return (
+              <div className="nav-group" key={group.label}>
+                <h2 className="nav-group-label">{group.label}</h2>
+                {visibleItems.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    onClick={() => setMobileNavOpen(false)}
+                    className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            )
+          })}
         </nav>
         <div className="sidebar-footer">
           <div className="actor-info">
@@ -116,6 +179,19 @@ export function App() {
         </div>
       </aside>
       <main className="content">
+        <div className="mobile-workspace-header">
+          <button
+            type="button"
+            className="mobile-nav-toggle"
+            aria-expanded={mobileNavOpen}
+            aria-controls="crm-sidebar"
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <span aria-hidden="true">☰</span>
+            <span>Menu</span>
+          </button>
+          <span className="mobile-workspace-name">NAEOS CRM</span>
+        </div>
         <Routes>
           <Route path="/login" element={<Navigate to="/" replace />} />
           <Route path="/" element={<DashboardPage />} />
