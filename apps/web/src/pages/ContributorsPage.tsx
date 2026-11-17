@@ -31,6 +31,7 @@ export function ContributorsPage() {
   const [form, setForm] = useState<ContributorForm>(EMPTY_FORM)
   const [communityId, setCommunityId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading || communities.loading) return <LoadingState />
   if (error || !data || !communities.data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -38,8 +39,11 @@ export function ContributorsPage() {
   const canWrite = can(actor, 'contributor', 'write')
   const communityNames = new Map((communities.data?.data ?? []).map((community) => [community.id, community.name]))
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/contributors', {
         method: 'POST',
@@ -55,6 +59,8 @@ export function ContributorsPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -85,10 +91,11 @@ export function ContributorsPage() {
 
       {showCreate && (
         <Modal title="New contributor" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="contributor-name">Name</label>
             <input
-              id="contributor-name"
+              id="contributor-name" required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
@@ -96,7 +103,7 @@ export function ContributorsPage() {
           <div className="form-group">
             <label htmlFor="contributor-role">Role</label>
             <select
-              id="contributor-role"
+              id="contributor-role" required
               value={form.role}
               onChange={(event) => setForm({ ...form, role: event.target.value })}
             >
@@ -132,10 +139,11 @@ export function ContributorsPage() {
               ))}
             </select>
           </div>
-          {formError && <p className="form-error">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create contributor
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create contributor'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

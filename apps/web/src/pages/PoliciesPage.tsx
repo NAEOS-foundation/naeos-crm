@@ -33,6 +33,7 @@ export function PoliciesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<RuleForm>(EMPTY_FORM)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   if (loading) return <LoadingState />
@@ -41,8 +42,11 @@ export function PoliciesPage() {
   const canWrite = can(actor, 'policy', 'write')
   const canDelete = can(actor, 'policy', 'delete')
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/policy/rules', {
         method: 'POST',
@@ -61,6 +65,8 @@ export function PoliciesPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -128,17 +134,18 @@ export function PoliciesPage() {
 
       {showCreate && (
         <Modal title="New policy rule" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="rule-resource">Resource</label>
-            <input id="rule-resource" value={form.resource} onChange={(event) => setForm({ ...form, resource: event.target.value })} />
+            <input id="rule-resource" required value={form.resource} onChange={(event) => setForm({ ...form, resource: event.target.value })} />
           </div>
           <div className="form-group">
             <label htmlFor="rule-action">Action</label>
-            <input id="rule-action" value={form.action} onChange={(event) => setForm({ ...form, action: event.target.value })} />
+            <input id="rule-action" required value={form.action} onChange={(event) => setForm({ ...form, action: event.target.value })} />
           </div>
           <div className="form-group">
             <label htmlFor="rule-role">Role</label>
-            <select id="rule-role" value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}>
+            <select id="rule-role" required value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}>
               <option value="ADMIN">ADMIN</option>
               <option value="MANAGER">MANAGER</option>
               <option value="MEMBER">MEMBER</option>
@@ -147,14 +154,14 @@ export function PoliciesPage() {
           </div>
           <div className="form-group">
             <label htmlFor="rule-effect">Effect</label>
-            <select id="rule-effect" value={form.effect} onChange={(event) => setForm({ ...form, effect: event.target.value as 'ALLOW' | 'DENY' })}>
+            <select id="rule-effect" required value={form.effect} onChange={(event) => setForm({ ...form, effect: event.target.value as 'ALLOW' | 'DENY' })}>
               <option value="ALLOW">ALLOW</option>
               <option value="DENY">DENY</option>
             </select>
           </div>
           <div className="form-group">
             <label htmlFor="rule-priority">Priority</label>
-            <input id="rule-priority" type="number" value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} />
+            <input id="rule-priority" type="number" step={1} value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} />
           </div>
           <div className="form-group form-check">
             <label htmlFor="rule-enabled">
@@ -162,10 +169,11 @@ export function PoliciesPage() {
               Enabled
             </label>
           </div>
-          {formError && <p className="form-error">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create rule
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create rule'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

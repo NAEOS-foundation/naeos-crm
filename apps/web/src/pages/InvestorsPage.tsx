@@ -28,14 +28,18 @@ export function InvestorsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<InvestorForm>(EMPTY_FORM)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
 
   const canWrite = can(actor, 'investor', 'write')
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/investors', { method: 'POST', body: form })
       setShowCreate(false)
@@ -43,6 +47,8 @@ export function InvestorsPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -72,10 +78,11 @@ export function InvestorsPage() {
 
       {showCreate && (
         <Modal title="New investor" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="investor-name">Name</label>
             <input
-              id="investor-name"
+              id="investor-name" required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
@@ -83,7 +90,7 @@ export function InvestorsPage() {
           <div className="form-group">
             <label htmlFor="investor-type">Type</label>
             <select
-              id="investor-type"
+              id="investor-type" required
               value={form.investorType}
               onChange={(event) => setForm({ ...form, investorType: event.target.value })}
             >
@@ -108,10 +115,11 @@ export function InvestorsPage() {
               ))}
             </select>
           </div>
-          {formError && <p className="form-error">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create investor
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create investor'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

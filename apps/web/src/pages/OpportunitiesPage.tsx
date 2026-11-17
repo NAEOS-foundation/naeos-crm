@@ -32,6 +32,7 @@ export function OpportunitiesPage() {
   const [form, setForm] = useState<OpportunityForm>(EMPTY_FORM)
   const [companyId, setCompanyId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading || companies.loading) return <LoadingState />
   if (error || !data || !companies.data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -39,8 +40,11 @@ export function OpportunitiesPage() {
   const canWrite = can(actor, 'opportunity', 'write')
   const companyNames = new Map((companies.data?.data ?? []).map((company) => [company.id, company.name]))
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/opportunities', {
         method: 'POST',
@@ -57,6 +61,8 @@ export function OpportunitiesPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -99,10 +105,11 @@ export function OpportunitiesPage() {
 
       {showCreate && (
         <Modal title="New opportunity" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="opportunity-company">Company</label>
             <select
-              id="opportunity-company"
+              id="opportunity-company" required
               value={companyId}
               onChange={(event) => setCompanyId(event.target.value)}
             >
@@ -116,7 +123,7 @@ export function OpportunitiesPage() {
           <div className="form-group">
             <label htmlFor="opportunity-name">Name</label>
             <input
-              id="opportunity-name"
+              id="opportunity-name" required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
@@ -155,10 +162,11 @@ export function OpportunitiesPage() {
               onChange={(event) => setForm({ ...form, closeDate: event.target.value })}
             />
           </div>
-          {formError && <p className="form-error">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create opportunity
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create opportunity'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

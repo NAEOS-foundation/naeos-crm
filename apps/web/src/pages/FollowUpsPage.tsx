@@ -30,6 +30,7 @@ export function FollowUpsPage() {
   const [form, setForm] = useState<FollowUpForm>(EMPTY_FORM)
   const [activityId, setActivityId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading || activities.loading) return <LoadingState />
   if (error || !data || !activities.data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -39,8 +40,11 @@ export function FollowUpsPage() {
     (activities.data?.data ?? []).map((activity) => [activity.id, activity.summary]),
   )
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/follow-ups', {
         method: 'POST',
@@ -56,6 +60,8 @@ export function FollowUpsPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -99,10 +105,11 @@ export function FollowUpsPage() {
 
       {showCreate && (
         <Modal title="New follow-up" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="followup-activity">Activity</label>
             <select
-              id="followup-activity"
+              id="followup-activity" required
               value={activityId}
               onChange={(event) => setActivityId(event.target.value)}
             >
@@ -116,7 +123,7 @@ export function FollowUpsPage() {
           <div className="form-group">
             <label htmlFor="followup-due">Due at</label>
             <input
-              id="followup-due"
+              id="followup-due" required
               type="datetime-local"
               value={form.dueAt}
               onChange={(event) => setForm({ ...form, dueAt: event.target.value })}
@@ -143,10 +150,11 @@ export function FollowUpsPage() {
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
             />
           </div>
-          {formError && <p className="form-error">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create follow-up
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create follow-up'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

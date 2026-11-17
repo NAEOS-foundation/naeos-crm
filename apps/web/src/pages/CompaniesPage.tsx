@@ -30,6 +30,7 @@ export function CompaniesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<CompanyForm>(EMPTY_FORM)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -37,8 +38,11 @@ export function CompaniesPage() {
   const canWrite = actor?.roles.some((role) => ['admin', 'manager'].includes(role.toLowerCase()))
   const canDelete = actor?.roles.some((role) => role.toLowerCase() === 'admin')
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       if (editing) {
         await api(`/api/v1/companies/${editing.id}`, { method: 'PUT', body: form })
@@ -51,6 +55,8 @@ export function CompaniesPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -119,10 +125,11 @@ export function CompaniesPage() {
 
       {showCreate && (
         <Modal title={editing ? `Edit ${editing.name}` : 'New company'} onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="company-name">Name</label>
             <input
-              id="company-name"
+              id="company-name" required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
@@ -155,10 +162,11 @@ export function CompaniesPage() {
               <option value="PENDING">Pending</option>
             </select>
           </div>
-          {formError && <p className="form-error">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            {editing ? 'Save changes' : 'Create company'}
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : editing ? 'Save changes' : 'Create company'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

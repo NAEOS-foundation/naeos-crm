@@ -31,6 +31,7 @@ export function ContactsPage() {
   const [form, setForm] = useState<ContactForm>(EMPTY_FORM)
   const [companyId, setCompanyId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading || companies.loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -42,8 +43,11 @@ export function ContactsPage() {
 
   const companyNames = new Map((companies.data?.data ?? []).map((company) => [company.id, company.name]))
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       const body: Record<string, string> = {
         companyId,
@@ -62,6 +66,8 @@ export function ContactsPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -99,9 +105,10 @@ export function ContactsPage() {
 
       {showCreate && (
         <Modal title="New contact" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="contact-company">Company</label>
-            <select id="contact-company" value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
+            <select id="contact-company" required value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
               {(availableCompanies.length > 0 ? availableCompanies : companies.data?.data ?? []).map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
@@ -112,7 +119,7 @@ export function ContactsPage() {
           <div className="form-group">
             <label htmlFor="contact-name">Full name</label>
             <input
-              id="contact-name"
+              id="contact-name" required
               value={form.fullName}
               onChange={(event) => setForm({ ...form, fullName: event.target.value })}
             />
@@ -145,10 +152,11 @@ export function ContactsPage() {
               <option value="PENDING">Pending</option>
             </select>
           </div>
-          {formError && <p className="form-error">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create contact
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create contact'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

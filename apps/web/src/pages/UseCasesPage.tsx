@@ -29,6 +29,7 @@ export function UseCasesPage() {
   const [form, setForm] = useState<UseCaseForm>(EMPTY_FORM)
   const [opportunityId, setOpportunityId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading || opportunities.loading) return <LoadingState />
   if (error || !data || !opportunities.data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -36,8 +37,11 @@ export function UseCasesPage() {
   const canWrite = can(actor, 'use-case', 'write')
   const opportunityNames = new Map((opportunities.data?.data ?? []).map((opportunity) => [opportunity.id, opportunity.name]))
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/use-cases', {
         method: 'POST',
@@ -53,6 +57,8 @@ export function UseCasesPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -87,9 +93,10 @@ export function UseCasesPage() {
 
       {showCreate && (
         <Modal title="New use case" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="usecase-opportunity">Opportunity</label>
-            <select id="usecase-opportunity" value={opportunityId} onChange={(event) => setOpportunityId(event.target.value)}>
+            <select id="usecase-opportunity" required value={opportunityId} onChange={(event) => setOpportunityId(event.target.value)}>
               {(opportunities.data?.data ?? []).map((opportunity) => (
                 <option key={opportunity.id} value={opportunity.id}>
                   {opportunity.name}
@@ -100,7 +107,7 @@ export function UseCasesPage() {
           <div className="form-group">
             <label htmlFor="usecase-title">Title</label>
             <input
-              id="usecase-title"
+              id="usecase-title" required
               value={form.title}
               onChange={(event) => setForm({ ...form, title: event.target.value })}
             />
@@ -123,10 +130,11 @@ export function UseCasesPage() {
               onChange={(event) => setForm({ ...form, value: event.target.value })}
             />
           </div>
-          {formError && <p className="form-error">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create use case
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create use case'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

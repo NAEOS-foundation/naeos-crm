@@ -27,14 +27,18 @@ export function CommunitiesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<CommunityForm>(EMPTY_FORM)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
 
   const canWrite = can(actor, 'community', 'write')
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/communities', {
         method: 'POST',
@@ -45,6 +49,8 @@ export function CommunitiesPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -74,10 +80,11 @@ export function CommunitiesPage() {
 
       {showCreate && (
         <Modal title="New community" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="community-name">Name</label>
             <input
-              id="community-name"
+              id="community-name" required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
@@ -104,10 +111,11 @@ export function CommunitiesPage() {
               ))}
             </select>
           </div>
-          {formError && <p className="form-error">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create community
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create community'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

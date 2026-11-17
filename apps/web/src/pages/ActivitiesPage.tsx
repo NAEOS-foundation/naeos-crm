@@ -32,6 +32,7 @@ export function ActivitiesPage() {
   const [form, setForm] = useState<ActivityForm>(EMPTY_FORM)
   const [companyId, setCompanyId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading || companies.loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -42,8 +43,11 @@ export function ActivitiesPage() {
     ? (companies.data?.data ?? []).filter((company) => company.ownerId === actor?.id)
     : (companies.data?.data ?? [])
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/activities', {
         method: 'POST',
@@ -59,6 +63,8 @@ export function ActivitiesPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -96,10 +102,11 @@ export function ActivitiesPage() {
 
       {showCreate && (
         <Modal title="New activity" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="activity-type">Type</label>
             <select
-              id="activity-type"
+              id="activity-type" required
               value={form.type}
               onChange={(event) => setForm({ ...form, type: event.target.value })}
             >
@@ -131,15 +138,16 @@ export function ActivitiesPage() {
           <div className="form-group">
             <label htmlFor="activity-summary">Summary</label>
             <input
-              id="activity-summary"
+              id="activity-summary" required
               value={form.summary}
               onChange={(event) => setForm({ ...form, summary: event.target.value })}
             />
           </div>
-          {formError && <p className="form-error">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create activity
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create activity'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

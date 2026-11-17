@@ -28,12 +28,16 @@ export function TasksPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<TaskForm>(EMPTY_FORM)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/tasks', {
         method: 'POST',
@@ -48,6 +52,8 @@ export function TasksPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -78,10 +84,11 @@ export function TasksPage() {
 
       {showCreate && (
         <Modal title="New task" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="task-subject">Subject</label>
             <input
-              id="task-subject"
+              id="task-subject" required
               value={form.subject}
               onChange={(event) => setForm({ ...form, subject: event.target.value })}
             />
@@ -107,10 +114,11 @@ export function TasksPage() {
               onChange={(event) => setForm({ ...form, dueAt: event.target.value })}
             />
           </div>
-          {formError && <p className="form-error">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create task
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create task'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

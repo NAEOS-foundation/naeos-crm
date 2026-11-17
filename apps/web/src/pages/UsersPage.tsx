@@ -27,12 +27,16 @@ export function UsersPage() {
   const [form, setForm] = useState<UserForm>(EMPTY_FORM)
   const [email, setEmail] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/users', {
         method: 'POST',
@@ -44,6 +48,8 @@ export function UsersPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -74,10 +80,11 @@ export function UsersPage() {
 
       {showCreate && (
         <Modal title="New user" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="user-name">Name</label>
             <input
-              id="user-name"
+              id="user-name" required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
@@ -85,7 +92,7 @@ export function UsersPage() {
           <div className="form-group">
             <label htmlFor="user-email">Email</label>
             <input
-              id="user-email"
+              id="user-email" required
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -102,10 +109,11 @@ export function UsersPage() {
               <option value="INACTIVE">Inactive</option>
             </select>
           </div>
-          {formError && <p className="form-error">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create user
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create user'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

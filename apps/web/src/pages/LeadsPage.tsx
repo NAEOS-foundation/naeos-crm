@@ -30,6 +30,7 @@ export function LeadsPage() {
   const [form, setForm] = useState<LeadForm>(EMPTY_FORM)
   const [companyId, setCompanyId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading || companies.loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -37,8 +38,11 @@ export function LeadsPage() {
   const canWrite = can(actor, 'lead', 'write')
   const companyNames = new Map((companies.data?.data ?? []).map((company) => [company.id, company.name]))
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/leads', {
         method: 'POST',
@@ -54,6 +58,8 @@ export function LeadsPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -91,9 +97,10 @@ export function LeadsPage() {
 
       {showCreate && (
         <Modal title="New lead" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="lead-company">Company</label>
-            <select id="lead-company" value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
+            <select id="lead-company" required value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
               {(companies.data?.data ?? []).map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
@@ -104,7 +111,7 @@ export function LeadsPage() {
           <div className="form-group">
             <label htmlFor="lead-source">Source</label>
             <input
-              id="lead-source"
+              id="lead-source" required
               value={form.source}
               onChange={(event) => setForm({ ...form, source: event.target.value })}
             />
@@ -133,10 +140,11 @@ export function LeadsPage() {
               onChange={(event) => setForm({ ...form, score: event.target.value })}
             />
           </div>
-          {formError && <p className="form-error">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create lead
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create lead'}
           </button>
+        </form>
         </Modal>
       )}
     </div>
