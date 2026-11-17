@@ -30,7 +30,7 @@ export function LoginPage() {
           </div>
           <div className="form-group">
             <label htmlFor="password">Password</label>
-            <input id="password" type="password" autoComplete="current-password" minLength={8} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} required disabled={submitting} />
+            <input id="password" type="password" autoComplete="current-password" minLength={15} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} required disabled={submitting} />
           </div>
           {error && <p className="form-error" role="alert">{error}</p>}
           <button className="btn btn-primary btn-block" type="submit" disabled={submitting}>

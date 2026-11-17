@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiError, Actor } from './api'
-import { signInWithSupabase, signOutFromSupabase } from './supabase-auth'
+import { hasSupabaseAuthConfiguration, signInWithSupabase, signOutFromSupabase } from './supabase-auth'
 
 interface AuthContextValue {
   actor: Actor | null
@@ -25,6 +25,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const normalizedEmail = email.trim().toLowerCase()
+
+    if (!hasSupabaseAuthConfiguration()) {
+      const result = await api<{ data: Actor }>('/api/v1/auth/login', {
+        method: 'POST',
+        body: { email: normalizedEmail, password },
+      })
+      setActor(result.data)
+      return
+    }
+
     const session = await signInWithSupabase(normalizedEmail, password)
     supabaseAccessToken.current = session.accessToken
 
