@@ -98,7 +98,7 @@ export function LeadsPage() {
         <Modal title="New lead" onClose={() => setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="lead-company">Company</label>
-            <select id="lead-company" value={companyId} onChange={(event) = required> setCompanyId(event.target.value)}>
+            <select id="lead-company" required value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
               {(companies.data?.data ?? []).map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
@@ -109,9 +109,9 @@ export function LeadsPage() {
           <div className="form-group">
             <label htmlFor="lead-source">Source</label>
             <input
-              id="lead-source"
+              id="lead-source" required
               value={form.source}
-              onChange={(event) = required> setForm({ ...form, source: event.target.value })}
+              onChange={(event) => setForm({ ...form, source: event.target.value })}
             />
           </div>
           <div className="form-group">

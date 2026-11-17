@@ -104,9 +104,9 @@ export function ActivitiesPage() {
           <div className="form-group">
             <label htmlFor="activity-type">Type</label>
             <select
-              id="activity-type"
+              id="activity-type" required
               value={form.type}
-              onChange={(event) = required> setForm({ ...form, type: event.target.value })}
+              onChange={(event) => setForm({ ...form, type: event.target.value })}
             >
               <option value="EMAIL">Email</option>
               <option value="CALL">Call</option>
@@ -136,9 +136,9 @@ export function ActivitiesPage() {
           <div className="form-group">
             <label htmlFor="activity-summary">Summary</label>
             <input
-              id="activity-summary"
+              id="activity-summary" required
               value={form.summary}
-              onChange={(event) = required> setForm({ ...form, summary: event.target.value })}
+              onChange={(event) => setForm({ ...form, summary: event.target.value })}
             />
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}

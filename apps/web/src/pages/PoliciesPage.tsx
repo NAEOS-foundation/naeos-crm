@@ -135,15 +135,15 @@ export function PoliciesPage() {
         <Modal title="New policy rule" onClose={() => setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="rule-resource">Resource</label>
-            <input id="rule-resource" value={form.resource} onChange={(event) = required> setForm({ ...form, resource: event.target.value })} />
+            <input id="rule-resource" required value={form.resource} onChange={(event) => setForm({ ...form, resource: event.target.value })} />
           </div>
           <div className="form-group">
             <label htmlFor="rule-action">Action</label>
-            <input id="rule-action" value={form.action} onChange={(event) = required> setForm({ ...form, action: event.target.value })} />
+            <input id="rule-action" required value={form.action} onChange={(event) => setForm({ ...form, action: event.target.value })} />
           </div>
           <div className="form-group">
             <label htmlFor="rule-role">Role</label>
-            <select id="rule-role" value={form.role} onChange={(event) = required> setForm({ ...form, role: event.target.value })}>
+            <select id="rule-role" required value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}>
               <option value="ADMIN">ADMIN</option>
               <option value="MANAGER">MANAGER</option>
               <option value="MEMBER">MEMBER</option>
@@ -152,7 +152,7 @@ export function PoliciesPage() {
           </div>
           <div className="form-group">
             <label htmlFor="rule-effect">Effect</label>
-            <select id="rule-effect" value={form.effect} onChange={(event) = required> setForm({ ...form, effect: event.target.value as 'ALLOW' | 'DENY' })}>
+            <select id="rule-effect" required value={form.effect} onChange={(event) => setForm({ ...form, effect: event.target.value as 'ALLOW' | 'DENY' })}>
               <option value="ALLOW">ALLOW</option>
               <option value="DENY">DENY</option>
             </select>

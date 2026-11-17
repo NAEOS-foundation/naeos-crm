@@ -80,17 +80,17 @@ export function InvestorsPage() {
           <div className="form-group">
             <label htmlFor="investor-name">Name</label>
             <input
-              id="investor-name"
+              id="investor-name" required
               value={form.name}
-              onChange={(event) = required> setForm({ ...form, name: event.target.value })}
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
           </div>
           <div className="form-group">
             <label htmlFor="investor-type">Type</label>
             <select
-              id="investor-type"
+              id="investor-type" required
               value={form.investorType}
-              onChange={(event) = required> setForm({ ...form, investorType: event.target.value })}
+              onChange={(event) => setForm({ ...form, investorType: event.target.value })}
             >
               {TYPE_OPTIONS.map((type) => (
                 <option key={type} value={type}>

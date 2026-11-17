@@ -93,17 +93,17 @@ export function ContributorsPage() {
           <div className="form-group">
             <label htmlFor="contributor-name">Name</label>
             <input
-              id="contributor-name"
+              id="contributor-name" required
               value={form.name}
-              onChange={(event) = required> setForm({ ...form, name: event.target.value })}
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
           </div>
           <div className="form-group">
             <label htmlFor="contributor-role">Role</label>
             <select
-              id="contributor-role"
+              id="contributor-role" required
               value={form.role}
-              onChange={(event) = required> setForm({ ...form, role: event.target.value })}
+              onChange={(event) => setForm({ ...form, role: event.target.value })}
             >
               {ROLE_OPTIONS.map((role) => (
                 <option key={role} value={role}>

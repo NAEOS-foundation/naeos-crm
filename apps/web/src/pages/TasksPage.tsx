@@ -86,9 +86,9 @@ export function TasksPage() {
           <div className="form-group">
             <label htmlFor="task-subject">Subject</label>
             <input
-              id="task-subject"
+              id="task-subject" required
               value={form.subject}
-              onChange={(event) = required> setForm({ ...form, subject: event.target.value })}
+              onChange={(event) => setForm({ ...form, subject: event.target.value })}
             />
           </div>
           <div className="form-group">

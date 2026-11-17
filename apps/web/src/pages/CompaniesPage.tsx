@@ -127,9 +127,9 @@ export function CompaniesPage() {
           <div className="form-group">
             <label htmlFor="company-name">Name</label>
             <input
-              id="company-name"
+              id="company-name" required
               value={form.name}
-              onChange={(event) = required> setForm({ ...form, name: event.target.value })}
+              onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
           </div>
           <div className="form-group">

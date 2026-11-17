@@ -107,9 +107,9 @@ export function FollowUpsPage() {
           <div className="form-group">
             <label htmlFor="followup-activity">Activity</label>
             <select
-              id="followup-activity"
+              id="followup-activity" required
               value={activityId}
-              onChange={(event) = required> setActivityId(event.target.value)}
+              onChange={(event) => setActivityId(event.target.value)}
             >
               {(activities.data?.data ?? []).map((activity) => (
                 <option key={activity.id} value={activity.id}>
@@ -121,10 +121,10 @@ export function FollowUpsPage() {
           <div className="form-group">
             <label htmlFor="followup-due">Due at</label>
             <input
-              id="followup-due"
+              id="followup-due" required
               type="datetime-local"
               value={form.dueAt}
-              onChange={(event) = required> setForm({ ...form, dueAt: event.target.value })}
+              onChange={(event) => setForm({ ...form, dueAt: event.target.value })}
             />
           </div>
           <div className="form-group">
