@@ -10,6 +10,10 @@ import { prisma } from './prisma-ports'
 export function createApp() {
   const app = express()
 
+  // Railway terminates public traffic at one trusted proxy hop.
+  // This makes req.ip reflect the client IP for per-client rate limiting.
+  app.set('trust proxy', 1)
+
   const allowedOrigins = new Set(
     (process.env.CORS_ORIGINS ?? 'https://crm.naeos.dev,https://naeos.dev')
       .split(',')
