@@ -5,7 +5,7 @@ import { generateRequestId, buildErrorResponse } from '@naeos-crm/shared'
 import { HttpError } from './errors'
 import { prisma } from './prisma-ports'
 
-const AUTH_SECRET = process.env.AUTH_SECRET || process.env.AUTH_DEV_SECRET
+const AUTH_SECRET = process.env.AUTH_SECRET
 const isProduction = () => (process.env.NODE_ENV ?? 'development') === 'production'
 const authDisabled = () => process.env.AUTH_DISABLED === 'true' && !isProduction()
 
