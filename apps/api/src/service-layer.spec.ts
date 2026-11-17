@@ -1720,3 +1720,43 @@ describe('Reject empty ownership reassignment values', () => {
     expect(campaignUpdate).not.toHaveBeenCalled()
   })
 })
+
+
+describe('Reject empty related-record reassignment values', () => {
+  const memberMeta = {
+    actorId: 'member-1',
+    actor: { id: 'member-1', roles: ['member'] as string[] },
+  }
+
+  it('rejects an empty follow-up ownerId before persistence', async () => {
+    const update = vi.fn()
+    const followUp = new FollowUpFacade({
+      async findById() {
+        return { id: 'follow-up-1', activityId: 'activity-1', ownerId: 'member-1' }
+      },
+      update,
+    } as any, createAuditService(), {
+      async findById() { return { id: 'activity-1', ownerId: 'member-1' } },
+    } as any, {} as any)
+
+    await expect(followUp.updateFollowUp('follow-up-1', { ownerId: '' } as any, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('rejects an empty campaignId when moving a campaign step', async () => {
+    const update = vi.fn()
+    const step = new CampaignStepFacade({
+      async findById() { return { id: 'step-1', campaignId: 'campaign-1' } },
+      update,
+    } as any, {
+      async findById(id: string) {
+        return id === 'campaign-1' ? { id, ownerId: 'member-1' } : null
+      },
+    } as any, createAuditService())
+
+    await expect(step.updateStep('step-1', { campaignId: '' } as any, memberMeta))
+      .rejects.toThrow('Campaign  was not found')
+    expect(update).not.toHaveBeenCalled()
+  })
+})
