@@ -3,6 +3,10 @@ import request from 'supertest'
 import { createApp } from './app'
 
 describe('production hardening', () => {
+  it('trusts exactly one ingress proxy hop for client IP attribution', () => {
+    expect(createApp().get('trust proxy')).toBe(1)
+  })
+
   it('returns a health response with security and correlation headers', async () => {
     const response = await request(createApp())
       .get('/health')
