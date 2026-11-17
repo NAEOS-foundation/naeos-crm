@@ -9,6 +9,14 @@ interface SupabaseTokenResponse {
   token_type?: unknown
 }
 
+export function hasSupabaseAuthConfiguration(): boolean {
+  return Boolean(
+    import.meta.env.VITE_SUPABASE_URL?.trim() ||
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+    import.meta.env.VITE_SUPABASE_ANON_KEY?.trim(),
+  )
+}
+
 function configuration() {
   const url = import.meta.env.VITE_SUPABASE_URL?.trim()
   const apiKey = (
@@ -18,7 +26,7 @@ function configuration() {
   ).trim()
 
   if (!url || !apiKey) {
-    throw new Error('Supabase Auth is not configured for this CRM deployment.')
+    throw new Error('Supabase Auth configuration is incomplete. Set VITE_SUPABASE_URL and a publishable/anon key.')
   }
 
   let base: URL
