@@ -1212,7 +1212,7 @@ describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
     const request = await facade.requestExecution({
       actionType: 'SEND_EMAIL',
       target: 'prospect@naeos.local',
-      requester: { id: 'user-admin', roles: ['ADMIN'] },
+      requester: { id: 'requester-admin-1', roles: ['ADMIN'] },
       meta: { requestId: 'req-1', source: 'test' },
     })
     expect(request.status).toBe('WAITING_FOR_GO')
@@ -1246,7 +1246,7 @@ describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
       actionType: 'SEND_EMAIL',
       target: 't@t.local',
       status: 'WAITING_FOR_GO',
-      requestedBy: 'user-admin',
+      requestedBy: 'requester-admin-pending',
     })
     const executed = await facade.approve(pending.id, { id: 'user-admin', roles: ['ADMIN'] }, { meta: { requestId: 'req-6' } })
     expect(executed.status).toBe('APPROVED')
@@ -1260,7 +1260,7 @@ describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
     const request = await facade.requestExecution({
       actionType: 'SEND_EMAIL',
       target: 'prospect@naeos.local',
-      requester: actor,
+      requester: { ...actor, id: 'requester-p4-10' },
       meta: { requestId: 'req-p4-10' },
     })
     await facade.approve(request.id, actor, { meta: { requestId: 'req-p4-10' } })
@@ -1279,7 +1279,7 @@ describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
     const request = await facade.requestExecution({
       actionType: 'SEND_EMAIL',
       target: 'prospect@naeos.local',
-      requester: actor,
+      requester: { ...actor, id: 'requester-p4-11' },
       meta: { requestId: 'req-p4-11' },
     })
 
@@ -1346,7 +1346,7 @@ describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
     const request = await facade.requestExecution({
       actionType: 'SEND_EMAIL',
       target: 'prospect@naeos.local',
-      requester: actor,
+      requester: { ...actor, id: 'requester-p4-15' },
       meta: { requestId: 'req-p4-15' },
     })
     await facade.approve(request.id, actor, { meta: { requestId: 'req-p4-15' } })
@@ -1369,7 +1369,7 @@ describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
     const request = await facade.requestExecution({
       actionType: 'SEND_EMAIL',
       target: 'prospect@naeos.local',
-      requester: actor,
+      requester: { ...actor, id: 'requester-p4-16' },
       meta: { requestId: 'req-p4-16' },
     })
     await facade.approve(request.id, actor, { meta: { requestId: 'req-p4-16' } })
@@ -1390,7 +1390,7 @@ describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
     const request = await facade.requestExecution({
       actionType: 'SEND_EMAIL',
       target: 'prospect@naeos.local',
-      requester: actor,
+      requester: { ...actor, id: 'requester-p4-17' },
       meta: { requestId: 'req-p4-17' },
     })
     await facade.approve(request.id, actor, { meta: { requestId: 'req-p4-17' } })
@@ -1411,7 +1411,7 @@ describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
     const request = await facade.requestExecution({
       actionType: 'SEND_EMAIL',
       target: 'prospect@naeos.local',
-      requester: actor,
+      requester: { ...actor, id: 'requester-p4-18' },
       meta: { requestId: 'req-p4-18' },
     })
     await facade.approve(request.id, actor, { meta: { requestId: 'req-p4-18' } })
@@ -1439,7 +1439,7 @@ describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
     const request = await facade.requestExecution({
       actionType: 'SEND_EMAIL',
       target: 'prospect@naeos.local',
-      requester: actor,
+      requester: { ...actor, id: 'requester-p4-19' },
       meta: { requestId: 'req-p4-19' },
     })
     await facade.approve(request.id, actor, { meta: { requestId: 'req-p4-19' } })

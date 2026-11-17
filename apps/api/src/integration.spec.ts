@@ -735,13 +735,14 @@ describe('Phase 4 governance: policy rules and GO-Gate', () => {
     expect(requested.body.data.status).toBe('WAITING_FOR_GO')
     const requestId = requested.body.data.id
 
-    const approved = await request(app).post(`/api/v1/go-gate/${requestId}/approve`).set(adminHeader).send({})
+    const approverHeader = devHeader(['admin'], 'go-gate-approver-1')
+    const approved = await request(app).post(`/api/v1/go-gate/${requestId}/approve`).set(approverHeader).send({})
     expect(approved.status).toBe(200)
     expect(approved.body.data.status).toBe('APPROVED')
     expect(approved.body.data.expiresAt).toBeTruthy()
     expect(approved.body.data.policyVersion).toBe('2026.09.17')
 
-    const executed = await request(app).post(`/api/v1/go-gate/${requestId}/execute`).set(adminHeader).send({})
+    const executed = await request(app).post(`/api/v1/go-gate/${requestId}/execute`).set(approverHeader).send({})
     expect(executed.status).toBe(200)
     expect(executed.body.data.status).toBe('EXECUTED')
     expect(executed.body.data.result).toBe('verified')
@@ -796,7 +797,7 @@ describe('Phase 4 governance: policy rules and GO-Gate', () => {
 
     it('allows only one winner for parallel executions', async () => {
       const gate = await createRequest()
-      await request(app).post(`/api/v1/go-gate/${gate.id}/approve`).set(admin).send({})
+      await request(app).post(`/api/v1/go-gate/${gate.id}/approve`).set(await realAdminHeader()).send({})
 
       const results = await Promise.all([
         port.transition(gate.id, 'APPROVED', { status: 'EXECUTING' }),
@@ -817,7 +818,7 @@ describe('Phase 4 governance: policy rules and GO-Gate', () => {
 
     it('does not overwrite terminal statuses via expiry transitions', async () => {
       const gate = await createRequest()
-      await request(app).post(`/api/v1/go-gate/${gate.id}/approve`).set(admin).send({})
+      await request(app).post(`/api/v1/go-gate/${gate.id}/approve`).set(await realAdminHeader()).send({})
 
       const executed = await port.transition(gate.id, 'APPROVED', {
         status: 'EXECUTED',
@@ -835,7 +836,7 @@ describe('Phase 4 governance: policy rules and GO-Gate', () => {
 
     it('keeps expiry guards atomic with status transitions', async () => {
       const gate = await createRequest()
-      await request(app).post(`/api/v1/go-gate/${gate.id}/approve`).set(admin).send({})
+      await request(app).post(`/api/v1/go-gate/${gate.id}/approve`).set(await realAdminHeader()).send({})
       const approved = await port.findById(gate.id)
 
       const stale = await port.transition(
