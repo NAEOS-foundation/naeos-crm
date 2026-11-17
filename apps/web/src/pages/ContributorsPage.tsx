@@ -90,12 +90,12 @@ export function ContributorsPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New contributor" onClose={() =>
-          <form onSubmit={submit}> setShowCreate(false)}>
+        <Modal title="New contributor" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="contributor-name">Name</label>
             <input
-              id="contributor-name" required
+              id="contributor-name" required required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
@@ -103,7 +103,7 @@ export function ContributorsPage() {
           <div className="form-group">
             <label htmlFor="contributor-role">Role</label>
             <select
-              id="contributor-role" required
+              id="contributor-role" required required
               value={form.role}
               onChange={(event) => setForm({ ...form, role: event.target.value })}
             >

@@ -104,12 +104,12 @@ export function FollowUpsPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New follow-up" onClose={() =>
-          <form onSubmit={submit}> setShowCreate(false)}>
+        <Modal title="New follow-up" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="followup-activity">Activity</label>
             <select
-              id="followup-activity" required
+              id="followup-activity" required required
               value={activityId}
               onChange={(event) => setActivityId(event.target.value)}
             >
@@ -123,7 +123,7 @@ export function FollowUpsPage() {
           <div className="form-group">
             <label htmlFor="followup-due">Due at</label>
             <input
-              id="followup-due" required
+              id="followup-due" required required
               type="datetime-local"
               value={form.dueAt}
               onChange={(event) => setForm({ ...form, dueAt: event.target.value })}

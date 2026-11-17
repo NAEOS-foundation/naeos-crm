@@ -79,12 +79,12 @@ export function CommunitiesPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New community" onClose={() =>
-          <form onSubmit={submit}> setShowCreate(false)}>
+        <Modal title="New community" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="community-name">Name</label>
             <input
-              id="community-name" required
+              id="community-name" required required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />

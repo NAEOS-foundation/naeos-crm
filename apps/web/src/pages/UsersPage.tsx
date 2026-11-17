@@ -79,12 +79,12 @@ export function UsersPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New user" onClose={() =>
-          <form onSubmit={submit}> setShowCreate(false)}>
+        <Modal title="New user" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="user-name">Name</label>
             <input
-              id="user-name" required
+              id="user-name" required required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
@@ -92,7 +92,7 @@ export function UsersPage() {
           <div className="form-group">
             <label htmlFor="user-email">Email</label>
             <input
-              id="user-email" required
+              id="user-email" required required
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}

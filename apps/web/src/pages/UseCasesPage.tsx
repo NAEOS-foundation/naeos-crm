@@ -92,11 +92,11 @@ export function UseCasesPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New use case" onClose={() =>
-          <form onSubmit={submit}> setShowCreate(false)}>
+        <Modal title="New use case" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="usecase-opportunity">Opportunity</label>
-            <select id="usecase-opportunity" required value={opportunityId} onChange={(event) => setOpportunityId(event.target.value)}>
+            <select id="usecase-opportunity" required required value={opportunityId} onChange={(event) => setOpportunityId(event.target.value)}>
               {(opportunities.data?.data ?? []).map((opportunity) => (
                 <option key={opportunity.id} value={opportunity.id}>
                   {opportunity.name}
@@ -107,7 +107,7 @@ export function UseCasesPage() {
           <div className="form-group">
             <label htmlFor="usecase-title">Title</label>
             <input
-              id="usecase-title" required
+              id="usecase-title" required required
               value={form.title}
               onChange={(event) => setForm({ ...form, title: event.target.value })}
             />

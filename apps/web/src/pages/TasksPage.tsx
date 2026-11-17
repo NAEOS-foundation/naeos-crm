@@ -83,12 +83,12 @@ export function TasksPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New task" onClose={() =>
-          <form onSubmit={submit}> setShowCreate(false)}>
+        <Modal title="New task" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="task-subject">Subject</label>
             <input
-              id="task-subject" required
+              id="task-subject" required required
               value={form.subject}
               onChange={(event) => setForm({ ...form, subject: event.target.value })}
             />

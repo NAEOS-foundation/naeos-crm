@@ -77,12 +77,12 @@ export function PartnersPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New partner" onClose={() =>
-          <form onSubmit={submit}> setShowCreate(false)}>
+        <Modal title="New partner" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="partner-name">Name</label>
             <input
-              id="partner-name" required
+              id="partner-name" required required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />

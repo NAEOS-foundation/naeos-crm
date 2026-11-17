@@ -77,12 +77,12 @@ export function InvestorsPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New investor" onClose={() =>
-          <form onSubmit={submit}> setShowCreate(false)}>
+        <Modal title="New investor" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="investor-name">Name</label>
             <input
-              id="investor-name" required
+              id="investor-name" required required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
@@ -90,7 +90,7 @@ export function InvestorsPage() {
           <div className="form-group">
             <label htmlFor="investor-type">Type</label>
             <select
-              id="investor-type" required
+              id="investor-type" required required
               value={form.investorType}
               onChange={(event) => setForm({ ...form, investorType: event.target.value })}
             >

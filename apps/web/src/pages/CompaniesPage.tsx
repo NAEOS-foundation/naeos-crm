@@ -124,12 +124,12 @@ export function CompaniesPage() {
       </Table>
 
       {showCreate && (
-        <Modal title={editing ? `Edit ${editing.name}` : 'New company'} onClose={() =>
-          <form onSubmit={submit}> setShowCreate(false)}>
+        <Modal title={editing ? `Edit ${editing.name}` : 'New company'} onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="company-name">Name</label>
             <input
-              id="company-name" required
+              id="company-name" required required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />

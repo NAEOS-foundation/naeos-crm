@@ -96,11 +96,11 @@ export function LeadsPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New lead" onClose={() =>
-          <form onSubmit={submit}> setShowCreate(false)}>
+        <Modal title="New lead" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="lead-company">Company</label>
-            <select id="lead-company" required value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
+            <select id="lead-company" required required value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
               {(companies.data?.data ?? []).map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
@@ -111,7 +111,7 @@ export function LeadsPage() {
           <div className="form-group">
             <label htmlFor="lead-source">Source</label>
             <input
-              id="lead-source" required
+              id="lead-source" required required
               value={form.source}
               onChange={(event) => setForm({ ...form, source: event.target.value })}
             />

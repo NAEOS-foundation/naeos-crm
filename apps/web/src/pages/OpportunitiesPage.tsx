@@ -104,12 +104,12 @@ export function OpportunitiesPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New opportunity" onClose={() =>
-          <form onSubmit={submit}> setShowCreate(false)}>
+        <Modal title="New opportunity" onClose={() => setShowCreate(false)}>
+          <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="opportunity-company">Company</label>
             <select
-              id="opportunity-company" required
+              id="opportunity-company" required required
               value={companyId}
               onChange={(event) => setCompanyId(event.target.value)}
             >
@@ -123,7 +123,7 @@ export function OpportunitiesPage() {
           <div className="form-group">
             <label htmlFor="opportunity-name">Name</label>
             <input
-              id="opportunity-name" required
+              id="opportunity-name" required required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
