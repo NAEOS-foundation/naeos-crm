@@ -108,7 +108,7 @@ export function InvestorsPage() {
               ))}
             </select>
           </div>
-          {formError && <p className="form-error">{formError}</p>}
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
           <button className="btn btn-primary btn-block" onClick={submit}>
             Create investor
           </button>

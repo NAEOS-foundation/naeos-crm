@@ -155,7 +155,7 @@ export function CompaniesPage() {
               <option value="PENDING">Pending</option>
             </select>
           </div>
-          {formError && <p className="form-error">{formError}</p>}
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
           <button className="btn btn-primary btn-block" onClick={submit}>
             {editing ? 'Save changes' : 'Create company'}
           </button>

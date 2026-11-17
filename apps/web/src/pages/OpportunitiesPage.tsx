@@ -155,7 +155,7 @@ export function OpportunitiesPage() {
               onChange={(event) => setForm({ ...form, closeDate: event.target.value })}
             />
           </div>
-          {formError && <p className="form-error">{formError}</p>}
+          {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
           <button className="btn btn-primary btn-block" onClick={submit}>
             Create opportunity
           </button>
