@@ -875,7 +875,7 @@ export class CampaignStepFacade {
   async updateStep(id: string, input: Partial<CampaignStep>, auditMeta: AuditMetadata) {
     const previous = await this.campaignStepReadPort.findById(id)
     if (previous) await this.assertCampaignAccess(previous.campaignId, auditMeta.actor)
-    if (input.campaignId && input.campaignId !== previous?.campaignId) {
+    if (input.campaignId !== undefined && input.campaignId !== previous?.campaignId) {
       await this.assertCampaignAccess(input.campaignId, auditMeta.actor)
     }
     const step = await this.campaignStepReadPort.update(id, input)
@@ -964,7 +964,7 @@ export class FollowUpFacade {
   async updateFollowUp(id: string, input: Partial<FollowUp>, auditMeta: AuditMetadata) {
     const previous = await this.followUpReadPort.findById(id)
     if (previous) await this.assertFollowUpAccess(previous.activityId, previous.ownerId, auditMeta.actor)
-    if (input.activityId || input.ownerId) {
+    if (input.activityId !== undefined || input.ownerId !== undefined) {
       await this.assertFollowUpAccess(input.activityId ?? previous?.activityId ?? '', input.ownerId ?? previous?.ownerId, auditMeta.actor)
     }
     const followUp = await this.followUpReadPort.update(id, input)
