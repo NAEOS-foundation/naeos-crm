@@ -1663,3 +1663,60 @@ describe('Internal CRM ownership enforcement for related records', () => {
     expect(update).not.toHaveBeenCalled()
   })
 })
+
+
+describe('Reject empty ownership reassignment values', () => {
+  const memberMeta = {
+    actorId: 'member-1',
+    actor: { id: 'member-1', roles: ['member'] as string[] },
+  }
+
+  it('rejects empty ownerId and assigneeId updates before persistence', async () => {
+    const leadUpdate = vi.fn()
+    const lead = new LeadFacade({
+      async findById() { return { id: 'lead-1', ownerId: 'member-1' } },
+      update: leadUpdate,
+    } as any, createAuditService())
+
+    const activityUpdate = vi.fn()
+    const activity = new ActivityFacade({
+      async findById() { return { id: 'activity-1', ownerId: 'member-1' } },
+      update: activityUpdate,
+    } as any, createAuditService(), {} as any)
+
+    const taskUpdate = vi.fn()
+    const task = new TaskFacade({
+      async findById() { return { id: 'task-1', assigneeId: 'member-1' } },
+      update: taskUpdate,
+    } as any, createAuditService(), {} as any)
+
+    const opportunityUpdate = vi.fn()
+    const opportunity = new OpportunityFacade({
+      async findById() { return { id: 'opportunity-1', ownerId: 'member-1' } },
+      update: opportunityUpdate,
+    } as any, createAuditService(), {} as any)
+
+    const campaignUpdate = vi.fn()
+    const campaign = new CampaignFacade({
+      async findById() { return { id: 'campaign-1', ownerId: 'member-1' } },
+      update: campaignUpdate,
+    } as any, createAuditService())
+
+    await expect(lead.updateLead('lead-1', { ownerId: '' } as any, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    await expect(activity.updateActivity('activity-1', { ownerId: '' } as any, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    await expect(task.updateTask('task-1', { assigneeId: '' } as any, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    await expect(opportunity.updateOpportunity('opportunity-1', { ownerId: '' } as any, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    await expect(campaign.updateCampaign('campaign-1', { ownerId: '' } as any, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+
+    expect(leadUpdate).not.toHaveBeenCalled()
+    expect(activityUpdate).not.toHaveBeenCalled()
+    expect(taskUpdate).not.toHaveBeenCalled()
+    expect(opportunityUpdate).not.toHaveBeenCalled()
+    expect(campaignUpdate).not.toHaveBeenCalled()
+  })
+})
