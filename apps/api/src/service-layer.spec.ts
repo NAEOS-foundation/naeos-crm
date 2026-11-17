@@ -1457,3 +1457,80 @@ describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
     expect(sink.append).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('Internal record ownership authorization', () => {
+  const memberMeta = {
+    actorId: 'member-1',
+    actor: { id: 'member-1', roles: ['member'] as string[] },
+  }
+  const otherOwner = 'member-2'
+
+  it('prevents a member from updating or deleting another member-owned lead', async () => {
+    const update = vi.fn()
+    const remove = vi.fn()
+    const port = {
+      async findById() {
+        return { id: 'lead-1', ownerId: otherOwner }
+      },
+      update,
+      delete: remove,
+    } as any
+    const facade = new LeadFacade(port, createAuditService())
+
+    await expect(facade.updateLead('lead-1', { status: 'QUALIFIED' } as any, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    await expect(facade.deleteLead('lead-1', memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    expect(update).not.toHaveBeenCalled()
+    expect(remove).not.toHaveBeenCalled()
+  })
+
+  it('prevents a member from reassigning a lead owned by them to another member', async () => {
+    const update = vi.fn()
+    const port = {
+      async findById() {
+        return { id: 'lead-1', ownerId: memberMeta.actor.id }
+      },
+      update,
+    } as any
+    const facade = new LeadFacade(port, createAuditService())
+
+    await expect(facade.updateLead('lead-1', { ownerId: otherOwner } as any, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('allows managers to manage records owned by other members', async () => {
+    const update = vi.fn().mockResolvedValue({ id: 'lead-1', ownerId: otherOwner })
+    const port = {
+      async findById() {
+        return { id: 'lead-1', ownerId: otherOwner }
+      },
+      update,
+    } as any
+    const facade = new LeadFacade(port, createAuditService())
+    const managerMeta = {
+      actorId: 'manager-1',
+      actor: { id: 'manager-1', roles: ['manager'] as string[] },
+    }
+
+    await facade.updateLead('lead-1', { status: 'QUALIFIED' } as any, managerMeta)
+    expect(update).toHaveBeenCalledOnce()
+  })
+
+  it('prevents a member from updating another owner\'s opportunity', async () => {
+    const update = vi.fn()
+    const port = {
+      async findById() {
+        return { id: 'opportunity-1', ownerId: otherOwner, companyId: 'company-1' }
+      },
+      update,
+    } as any
+    const companyPort = { async findById() { return { id: 'company-1', ownerId: memberMeta.actor.id } } } as any
+    const facade = new OpportunityFacade(port, createAuditService(), companyPort)
+
+    await expect(facade.updateOpportunity('opportunity-1', { stage: 'PROPOSAL' } as any, memberMeta))
+      .rejects.toThrow('You cannot modify records you do not own')
+    expect(update).not.toHaveBeenCalled()
+  })
+})
