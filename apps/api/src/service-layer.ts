@@ -336,6 +336,7 @@ export class LeadFacade {
   }
 
   async createLead(input: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
     const lead = await this.leadReadPort.create(input)
     await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
@@ -351,6 +352,8 @@ export class LeadFacade {
 
   async updateLead(id: string, input: Partial<Lead>, auditMeta: AuditMetadata) {
     const previous = await this.leadReadPort.findById(id)
+    if (previous) assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
+    if (input.ownerId) assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
     const lead = await this.leadReadPort.update(id, input)
 
     if (!lead) return null
@@ -370,6 +373,7 @@ export class LeadFacade {
 
   async deleteLead(id: string, auditMeta: AuditMetadata) {
     const previous = await this.leadReadPort.findById(id)
+    if (previous) assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
     const deleted = await this.leadReadPort.delete(id)
 
     if (deleted && previous) {
@@ -678,6 +682,7 @@ export class OpportunityFacade {
 
   async createOpportunity(input: Omit<Opportunity, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
     await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId)
+    assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
     const opportunity = await this.opportunityReadPort.create(input)
     await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
@@ -693,6 +698,8 @@ export class OpportunityFacade {
 
   async updateOpportunity(id: string, input: Partial<Opportunity>, auditMeta: AuditMetadata) {
     const previous = await this.opportunityReadPort.findById(id)
+    if (previous) assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
+    if (input.ownerId) assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
     const targetCompanyId = input.companyId ?? previous?.companyId
     if (targetCompanyId) {
       await assertCompanyAccess(this.companyReadPort, auditMeta.actor, targetCompanyId)
@@ -731,6 +738,7 @@ export class OpportunityFacade {
 
   async deleteOpportunity(id: string, auditMeta: AuditMetadata) {
     const previous = await this.opportunityReadPort.findById(id)
+    if (previous) assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
     if (previous?.companyId) {
       await assertCompanyAccess(this.companyReadPort, auditMeta.actor, previous.companyId)
     }
