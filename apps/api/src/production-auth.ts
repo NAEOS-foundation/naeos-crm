@@ -49,16 +49,18 @@ export async function issueSession(actor: AuthenticatedActor): Promise<string> {
 }
 
 export function setSessionCookie(res: Response, token: string) {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
   res.setHeader(
     'Set-Cookie',
-    `${SESSION_COOKIE}=${encodeURIComponent(token)}; Max-Age=${SESSION_TTL_SECONDS}; Path=/; HttpOnly; Secure; SameSite=Strict`,
+    `${SESSION_COOKIE}=${encodeURIComponent(token)}; Max-Age=${SESSION_TTL_SECONDS}; Path=/; HttpOnly${secure}; SameSite=Strict`,
   )
 }
 
 export function clearSessionCookie(res: Response) {
+  const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
   res.setHeader(
     'Set-Cookie',
-    `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict`,
+    `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly${secure}; SameSite=Strict`,
   )
 }
 
