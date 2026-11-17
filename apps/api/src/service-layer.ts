@@ -874,7 +874,10 @@ export class CampaignStepFacade {
 
   async updateStep(id: string, input: Partial<CampaignStep>, auditMeta: AuditMetadata) {
     const previous = await this.campaignStepReadPort.findById(id)
-    await this.assertCampaignAccess(input.campaignId ?? previous?.campaignId ?? '', auditMeta.actor)
+    if (previous) await this.assertCampaignAccess(previous.campaignId, auditMeta.actor)
+    if (input.campaignId && input.campaignId !== previous?.campaignId) {
+      await this.assertCampaignAccess(input.campaignId, auditMeta.actor)
+    }
     const step = await this.campaignStepReadPort.update(id, input)
 
     if (!step) return null
