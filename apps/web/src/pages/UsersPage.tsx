@@ -32,7 +32,8 @@ export function UsersPage() {
   if (loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (isSubmitting) return
     setFormError(null)
     setIsSubmitting(true)
@@ -78,7 +79,8 @@ export function UsersPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New user" onClose={() => setShowCreate(false)}>
+        <Modal title="New user" onClose={() =>
+          <form onSubmit={submit}> setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="user-name">Name</label>
             <input
@@ -108,9 +110,10 @@ export function UsersPage() {
             </select>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Create user'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

@@ -35,7 +35,8 @@ export function PartnersPage() {
 
   const canWrite = can(actor, 'partner', 'write')
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (isSubmitting) return
     setFormError(null)
     setIsSubmitting(true)
@@ -76,7 +77,8 @@ export function PartnersPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New partner" onClose={() => setShowCreate(false)}>
+        <Modal title="New partner" onClose={() =>
+          <form onSubmit={submit}> setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="partner-name">Name</label>
             <input
@@ -114,9 +116,10 @@ export function PartnersPage() {
             </select>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Create partner'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

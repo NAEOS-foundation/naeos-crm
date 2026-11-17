@@ -35,7 +35,8 @@ export function InvestorsPage() {
 
   const canWrite = can(actor, 'investor', 'write')
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (isSubmitting) return
     setFormError(null)
     setIsSubmitting(true)
@@ -76,7 +77,8 @@ export function InvestorsPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New investor" onClose={() => setShowCreate(false)}>
+        <Modal title="New investor" onClose={() =>
+          <form onSubmit={submit}> setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="investor-name">Name</label>
             <input
@@ -114,9 +116,10 @@ export function InvestorsPage() {
             </select>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Create investor'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

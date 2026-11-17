@@ -40,7 +40,8 @@ export function OpportunitiesPage() {
   const canWrite = can(actor, 'opportunity', 'write')
   const companyNames = new Map((companies.data?.data ?? []).map((company) => [company.id, company.name]))
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (isSubmitting) return
     setFormError(null)
     setIsSubmitting(true)
@@ -103,7 +104,8 @@ export function OpportunitiesPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New opportunity" onClose={() => setShowCreate(false)}>
+        <Modal title="New opportunity" onClose={() =>
+          <form onSubmit={submit}> setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="opportunity-company">Company</label>
             <select
@@ -161,9 +163,10 @@ export function OpportunitiesPage() {
             />
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Create opportunity'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

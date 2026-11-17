@@ -40,7 +40,8 @@ export function FollowUpsPage() {
     (activities.data?.data ?? []).map((activity) => [activity.id, activity.summary]),
   )
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (isSubmitting) return
     setFormError(null)
     setIsSubmitting(true)
@@ -103,7 +104,8 @@ export function FollowUpsPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New follow-up" onClose={() => setShowCreate(false)}>
+        <Modal title="New follow-up" onClose={() =>
+          <form onSubmit={submit}> setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="followup-activity">Activity</label>
             <select
@@ -149,9 +151,10 @@ export function FollowUpsPage() {
             />
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Create follow-up'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

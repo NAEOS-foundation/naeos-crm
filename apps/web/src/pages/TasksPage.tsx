@@ -33,7 +33,8 @@ export function TasksPage() {
   if (loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (isSubmitting) return
     setFormError(null)
     setIsSubmitting(true)
@@ -82,7 +83,8 @@ export function TasksPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New task" onClose={() => setShowCreate(false)}>
+        <Modal title="New task" onClose={() =>
+          <form onSubmit={submit}> setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="task-subject">Subject</label>
             <input
@@ -113,9 +115,10 @@ export function TasksPage() {
             />
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Create task'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

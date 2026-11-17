@@ -43,7 +43,8 @@ export function ActivitiesPage() {
     ? (companies.data?.data ?? []).filter((company) => company.ownerId === actor?.id)
     : (companies.data?.data ?? [])
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (isSubmitting) return
     setFormError(null)
     setIsSubmitting(true)
@@ -100,7 +101,8 @@ export function ActivitiesPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New activity" onClose={() => setShowCreate(false)}>
+        <Modal title="New activity" onClose={() =>
+          <form onSubmit={submit}> setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="activity-type">Type</label>
             <select
@@ -142,9 +144,10 @@ export function ActivitiesPage() {
             />
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Create activity'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

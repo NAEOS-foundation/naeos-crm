@@ -43,7 +43,8 @@ export function ContactsPage() {
 
   const companyNames = new Map((companies.data?.data ?? []).map((company) => [company.id, company.name]))
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (isSubmitting) return
     setFormError(null)
     setIsSubmitting(true)
@@ -103,7 +104,8 @@ export function ContactsPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New contact" onClose={() => setShowCreate(false)}>
+        <Modal title="New contact" onClose={() =>
+          <form onSubmit={submit}> setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="contact-company">Company</label>
             <select id="contact-company" required value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
@@ -151,9 +153,10 @@ export function ContactsPage() {
             </select>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Create contact'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

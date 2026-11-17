@@ -42,7 +42,8 @@ export function PoliciesPage() {
   const canWrite = can(actor, 'policy', 'write')
   const canDelete = can(actor, 'policy', 'delete')
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (isSubmitting) return
     setFormError(null)
     setIsSubmitting(true)
@@ -132,7 +133,8 @@ export function PoliciesPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New policy rule" onClose={() => setShowCreate(false)}>
+        <Modal title="New policy rule" onClose={() =>
+          <form onSubmit={submit}> setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="rule-resource">Resource</label>
             <input id="rule-resource" required value={form.resource} onChange={(event) => setForm({ ...form, resource: event.target.value })} />
@@ -168,9 +170,10 @@ export function PoliciesPage() {
             </label>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Create rule'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

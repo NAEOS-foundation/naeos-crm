@@ -37,7 +37,8 @@ export function UseCasesPage() {
   const canWrite = can(actor, 'use-case', 'write')
   const opportunityNames = new Map((opportunities.data?.data ?? []).map((opportunity) => [opportunity.id, opportunity.name]))
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (isSubmitting) return
     setFormError(null)
     setIsSubmitting(true)
@@ -91,7 +92,8 @@ export function UseCasesPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New use case" onClose={() => setShowCreate(false)}>
+        <Modal title="New use case" onClose={() =>
+          <form onSubmit={submit}> setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="usecase-opportunity">Opportunity</label>
             <select id="usecase-opportunity" required value={opportunityId} onChange={(event) => setOpportunityId(event.target.value)}>
@@ -129,9 +131,10 @@ export function UseCasesPage() {
             />
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Create use case'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

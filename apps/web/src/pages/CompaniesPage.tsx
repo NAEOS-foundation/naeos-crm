@@ -38,7 +38,8 @@ export function CompaniesPage() {
   const canWrite = actor?.roles.some((role) => ['admin', 'manager'].includes(role.toLowerCase()))
   const canDelete = actor?.roles.some((role) => role.toLowerCase() === 'admin')
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (isSubmitting) return
     setFormError(null)
     setIsSubmitting(true)
@@ -123,7 +124,8 @@ export function CompaniesPage() {
       </Table>
 
       {showCreate && (
-        <Modal title={editing ? `Edit ${editing.name}` : 'New company'} onClose={() => setShowCreate(false)}>
+        <Modal title={editing ? `Edit ${editing.name}` : 'New company'} onClose={() =>
+          <form onSubmit={submit}> setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="company-name">Name</label>
             <input
@@ -161,9 +163,10 @@ export function CompaniesPage() {
             </select>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : editing ? 'Save changes' : 'Create company'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

@@ -39,7 +39,8 @@ export function ContributorsPage() {
   const canWrite = can(actor, 'contributor', 'write')
   const communityNames = new Map((communities.data?.data ?? []).map((community) => [community.id, community.name]))
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (isSubmitting) return
     setFormError(null)
     setIsSubmitting(true)
@@ -89,7 +90,8 @@ export function ContributorsPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New contributor" onClose={() => setShowCreate(false)}>
+        <Modal title="New contributor" onClose={() =>
+          <form onSubmit={submit}> setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="contributor-name">Name</label>
             <input
@@ -138,9 +140,10 @@ export function ContributorsPage() {
             </select>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Create contributor'}
           </button>
+        </form>
         </Modal>
       )}
     </div>

@@ -34,7 +34,8 @@ export function CommunitiesPage() {
 
   const canWrite = can(actor, 'community', 'write')
 
-  async function submit() {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
     if (isSubmitting) return
     setFormError(null)
     setIsSubmitting(true)
@@ -78,7 +79,8 @@ export function CommunitiesPage() {
       </Table>
 
       {showCreate && (
-        <Modal title="New community" onClose={() => setShowCreate(false)}>
+        <Modal title="New community" onClose={() =>
+          <form onSubmit={submit}> setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="community-name">Name</label>
             <input
@@ -110,9 +112,10 @@ export function CommunitiesPage() {
             </select>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+          <button className="btn btn-primary btn-block" type="submit" disabled={isSubmitting}>
             {isSubmitting ? 'Saving…' : 'Create community'}
           </button>
+        </form>
         </Modal>
       )}
     </div>
