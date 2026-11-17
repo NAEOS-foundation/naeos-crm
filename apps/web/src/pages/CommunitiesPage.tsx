@@ -84,7 +84,7 @@ export function CommunitiesPage() {
             <input
               id="community-name"
               value={form.name}
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
+              onChange={(event) = required> setForm({ ...form, name: event.target.value })}
             />
           </div>
           <div className="form-group">

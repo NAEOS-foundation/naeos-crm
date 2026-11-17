@@ -95,7 +95,7 @@ export function ContributorsPage() {
             <input
               id="contributor-name"
               value={form.name}
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
+              onChange={(event) = required> setForm({ ...form, name: event.target.value })}
             />
           </div>
           <div className="form-group">
@@ -103,7 +103,7 @@ export function ContributorsPage() {
             <select
               id="contributor-role"
               value={form.role}
-              onChange={(event) => setForm({ ...form, role: event.target.value })}
+              onChange={(event) = required> setForm({ ...form, role: event.target.value })}
             >
               {ROLE_OPTIONS.map((role) => (
                 <option key={role} value={role}>

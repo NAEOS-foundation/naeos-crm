@@ -106,7 +106,7 @@ export function ContactsPage() {
         <Modal title="New contact" onClose={() => setShowCreate(false)}>
           <div className="form-group">
             <label htmlFor="contact-company">Company</label>
-            <select id="contact-company" value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
+            <select id="contact-company" value={companyId} onChange={(event) = required> setCompanyId(event.target.value)}>
               {(availableCompanies.length > 0 ? availableCompanies : companies.data?.data ?? []).map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
@@ -119,7 +119,7 @@ export function ContactsPage() {
             <input
               id="contact-name"
               value={form.fullName}
-              onChange={(event) => setForm({ ...form, fullName: event.target.value })}
+              onChange={(event) = required> setForm({ ...form, fullName: event.target.value })}
             />
           </div>
           <div className="form-group">

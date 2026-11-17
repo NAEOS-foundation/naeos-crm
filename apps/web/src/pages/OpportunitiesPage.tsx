@@ -109,7 +109,7 @@ export function OpportunitiesPage() {
             <select
               id="opportunity-company"
               value={companyId}
-              onChange={(event) => setCompanyId(event.target.value)}
+              onChange={(event) = required> setCompanyId(event.target.value)}
             >
               {(companies.data?.data ?? []).map((company) => (
                 <option key={company.id} value={company.id}>
@@ -123,7 +123,7 @@ export function OpportunitiesPage() {
             <input
               id="opportunity-name"
               value={form.name}
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
+              onChange={(event) = required> setForm({ ...form, name: event.target.value })}
             />
           </div>
           <div className="form-group">

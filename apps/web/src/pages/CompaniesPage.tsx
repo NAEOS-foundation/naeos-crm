@@ -129,7 +129,7 @@ export function CompaniesPage() {
             <input
               id="company-name"
               value={form.name}
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
+              onChange={(event) = required> setForm({ ...form, name: event.target.value })}
             />
           </div>
           <div className="form-group">

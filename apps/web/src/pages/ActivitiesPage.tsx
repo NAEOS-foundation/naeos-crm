@@ -106,7 +106,7 @@ export function ActivitiesPage() {
             <select
               id="activity-type"
               value={form.type}
-              onChange={(event) => setForm({ ...form, type: event.target.value })}
+              onChange={(event) = required> setForm({ ...form, type: event.target.value })}
             >
               <option value="EMAIL">Email</option>
               <option value="CALL">Call</option>
@@ -138,7 +138,7 @@ export function ActivitiesPage() {
             <input
               id="activity-summary"
               value={form.summary}
-              onChange={(event) => setForm({ ...form, summary: event.target.value })}
+              onChange={(event) = required> setForm({ ...form, summary: event.target.value })}
             />
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}

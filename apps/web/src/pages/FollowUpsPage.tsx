@@ -109,7 +109,7 @@ export function FollowUpsPage() {
             <select
               id="followup-activity"
               value={activityId}
-              onChange={(event) => setActivityId(event.target.value)}
+              onChange={(event) = required> setActivityId(event.target.value)}
             >
               {(activities.data?.data ?? []).map((activity) => (
                 <option key={activity.id} value={activity.id}>
@@ -124,7 +124,7 @@ export function FollowUpsPage() {
               id="followup-due"
               type="datetime-local"
               value={form.dueAt}
-              onChange={(event) => setForm({ ...form, dueAt: event.target.value })}
+              onChange={(event) = required> setForm({ ...form, dueAt: event.target.value })}
             />
           </div>
           <div className="form-group">
