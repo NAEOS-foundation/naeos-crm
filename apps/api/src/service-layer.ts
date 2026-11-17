@@ -353,7 +353,7 @@ export class LeadFacade {
   async updateLead(id: string, input: Partial<Lead>, auditMeta: AuditMetadata) {
     const previous = await this.leadReadPort.findById(id)
     if (previous) assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
-    if (input.ownerId) assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
+    if (input.ownerId !== undefined) assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
     const lead = await this.leadReadPort.update(id, input)
 
     if (!lead) return null
@@ -432,7 +432,7 @@ export class ActivityFacade {
   async updateActivity(id: string, input: Partial<Activity>, auditMeta: AuditMetadata) {
     const previous = await this.activityReadPort.findById(id)
     if (previous) assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
-    if (input.ownerId) assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
+    if (input.ownerId !== undefined) assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
     const targetCompanyId = input.companyId ?? previous?.companyId
     if (targetCompanyId) {
       await assertCompanyAccess(this.companyReadPort, auditMeta.actor, targetCompanyId)
@@ -518,7 +518,7 @@ export class TaskFacade {
   async updateTask(id: string, input: Partial<Task>, auditMeta: AuditMetadata) {
     const previous = await this.taskReadPort.findById(id)
     if (previous) assertSelfScoped(auditMeta.actor, 'assigneeId', previous.assigneeId)
-    if (input.assigneeId) assertSelfScoped(auditMeta.actor, 'assigneeId', input.assigneeId)
+    if (input.assigneeId !== undefined) assertSelfScoped(auditMeta.actor, 'assigneeId', input.assigneeId)
     const targetCompanyId = input.companyId ?? previous?.companyId
     if (targetCompanyId) {
       await assertCompanyAccess(this.companyReadPort, auditMeta.actor, targetCompanyId)
@@ -695,7 +695,7 @@ export class OpportunityFacade {
   async updateOpportunity(id: string, input: Partial<Opportunity>, auditMeta: AuditMetadata) {
     const previous = await this.opportunityReadPort.findById(id)
     if (previous) assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
-    if (input.ownerId) assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
+    if (input.ownerId !== undefined) assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
     const targetCompanyId = input.companyId ?? previous?.companyId
     if (targetCompanyId) {
       await assertCompanyAccess(this.companyReadPort, auditMeta.actor, targetCompanyId)
@@ -792,7 +792,7 @@ export class CampaignFacade {
   async updateCampaign(id: string, input: Partial<Campaign>, auditMeta: AuditMetadata) {
     const previous = await this.campaignReadPort.findById(id)
     if (previous) assertSelfScoped(auditMeta.actor, 'ownerId', previous.ownerId)
-    if (input.ownerId) assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
+    if (input.ownerId !== undefined) assertSelfScoped(auditMeta.actor, 'ownerId', input.ownerId)
     const campaign = await this.campaignReadPort.update(id, input)
 
     if (!campaign) return null
