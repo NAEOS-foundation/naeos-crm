@@ -82,7 +82,7 @@ export function InvestorsPage() {
           <div className="form-group">
             <label htmlFor="investor-name">Name</label>
             <input
-              id="investor-name" required required
+              id="investor-name" required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
@@ -90,7 +90,7 @@ export function InvestorsPage() {
           <div className="form-group">
             <label htmlFor="investor-type">Type</label>
             <select
-              id="investor-type" required required
+              id="investor-type" required
               value={form.investorType}
               onChange={(event) => setForm({ ...form, investorType: event.target.value })}
             >

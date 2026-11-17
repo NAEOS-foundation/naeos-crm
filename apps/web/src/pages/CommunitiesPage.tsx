@@ -84,7 +84,7 @@ export function CommunitiesPage() {
           <div className="form-group">
             <label htmlFor="community-name">Name</label>
             <input
-              id="community-name" required required
+              id="community-name" required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />

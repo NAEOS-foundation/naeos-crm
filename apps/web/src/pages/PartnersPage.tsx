@@ -82,7 +82,7 @@ export function PartnersPage() {
           <div className="form-group">
             <label htmlFor="partner-name">Name</label>
             <input
-              id="partner-name" required required
+              id="partner-name" required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />

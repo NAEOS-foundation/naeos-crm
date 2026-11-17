@@ -109,7 +109,7 @@ export function OpportunitiesPage() {
           <div className="form-group">
             <label htmlFor="opportunity-company">Company</label>
             <select
-              id="opportunity-company" required required
+              id="opportunity-company" required
               value={companyId}
               onChange={(event) => setCompanyId(event.target.value)}
             >
@@ -123,7 +123,7 @@ export function OpportunitiesPage() {
           <div className="form-group">
             <label htmlFor="opportunity-name">Name</label>
             <input
-              id="opportunity-name" required required
+              id="opportunity-name" required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />

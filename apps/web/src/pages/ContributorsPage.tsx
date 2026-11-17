@@ -95,7 +95,7 @@ export function ContributorsPage() {
           <div className="form-group">
             <label htmlFor="contributor-name">Name</label>
             <input
-              id="contributor-name" required required
+              id="contributor-name" required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
@@ -103,7 +103,7 @@ export function ContributorsPage() {
           <div className="form-group">
             <label htmlFor="contributor-role">Role</label>
             <select
-              id="contributor-role" required required
+              id="contributor-role" required
               value={form.role}
               onChange={(event) => setForm({ ...form, role: event.target.value })}
             >

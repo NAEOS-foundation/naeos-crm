@@ -84,7 +84,7 @@ export function UsersPage() {
           <div className="form-group">
             <label htmlFor="user-name">Name</label>
             <input
-              id="user-name" required required
+              id="user-name" required
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
             />
@@ -92,7 +92,7 @@ export function UsersPage() {
           <div className="form-group">
             <label htmlFor="user-email">Email</label>
             <input
-              id="user-email" required required
+              id="user-email" required
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}

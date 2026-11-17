@@ -100,7 +100,7 @@ export function LeadsPage() {
           <form onSubmit={submit}>
           <div className="form-group">
             <label htmlFor="lead-company">Company</label>
-            <select id="lead-company" required required value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
+            <select id="lead-company" required value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
               {(companies.data?.data ?? []).map((company) => (
                 <option key={company.id} value={company.id}>
                   {company.name}
@@ -111,7 +111,7 @@ export function LeadsPage() {
           <div className="form-group">
             <label htmlFor="lead-source">Source</label>
             <input
-              id="lead-source" required required
+              id="lead-source" required
               value={form.source}
               onChange={(event) => setForm({ ...form, source: event.target.value })}
             />

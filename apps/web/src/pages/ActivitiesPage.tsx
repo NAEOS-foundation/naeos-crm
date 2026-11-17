@@ -106,7 +106,7 @@ export function ActivitiesPage() {
           <div className="form-group">
             <label htmlFor="activity-type">Type</label>
             <select
-              id="activity-type" required required
+              id="activity-type" required
               value={form.type}
               onChange={(event) => setForm({ ...form, type: event.target.value })}
             >
@@ -138,7 +138,7 @@ export function ActivitiesPage() {
           <div className="form-group">
             <label htmlFor="activity-summary">Summary</label>
             <input
-              id="activity-summary" required required
+              id="activity-summary" required
               value={form.summary}
               onChange={(event) => setForm({ ...form, summary: event.target.value })}
             />
