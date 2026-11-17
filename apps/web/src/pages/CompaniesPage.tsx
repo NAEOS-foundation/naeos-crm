@@ -30,6 +30,7 @@ export function CompaniesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<CompanyForm>(EMPTY_FORM)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -38,7 +39,9 @@ export function CompaniesPage() {
   const canDelete = actor?.roles.some((role) => role.toLowerCase() === 'admin')
 
   async function submit() {
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       if (editing) {
         await api(`/api/v1/companies/${editing.id}`, { method: 'PUT', body: form })
@@ -51,6 +54,8 @@ export function CompaniesPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -156,7 +161,7 @@ export function CompaniesPage() {
             </select>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
+          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
             {editing ? 'Save changes' : 'Create company'}
           </button>
         </Modal>

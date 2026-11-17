@@ -30,6 +30,7 @@ export function FollowUpsPage() {
   const [form, setForm] = useState<FollowUpForm>(EMPTY_FORM)
   const [activityId, setActivityId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading || activities.loading) return <LoadingState />
   if (error || !data || !activities.data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -40,7 +41,9 @@ export function FollowUpsPage() {
   )
 
   async function submit() {
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/follow-ups', {
         method: 'POST',
@@ -56,6 +59,8 @@ export function FollowUpsPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -144,8 +149,8 @@ export function FollowUpsPage() {
             />
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create follow-up
+          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create up'}
           </button>
         </Modal>
       )}

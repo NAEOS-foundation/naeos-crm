@@ -32,6 +32,7 @@ export function ActivitiesPage() {
   const [form, setForm] = useState<ActivityForm>(EMPTY_FORM)
   const [companyId, setCompanyId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading || companies.loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -43,7 +44,9 @@ export function ActivitiesPage() {
     : (companies.data?.data ?? [])
 
   async function submit() {
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/activities', {
         method: 'POST',
@@ -59,6 +62,8 @@ export function ActivitiesPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -137,8 +142,8 @@ export function ActivitiesPage() {
             />
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create activity
+          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create y'}
           </button>
         </Modal>
       )}

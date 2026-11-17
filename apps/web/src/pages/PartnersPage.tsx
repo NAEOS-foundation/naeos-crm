@@ -28,6 +28,7 @@ export function PartnersPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<PartnerForm>(EMPTY_FORM)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -35,7 +36,9 @@ export function PartnersPage() {
   const canWrite = can(actor, 'partner', 'write')
 
   async function submit() {
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/partners', { method: 'POST', body: form })
       setShowCreate(false)
@@ -43,6 +46,8 @@ export function PartnersPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -109,8 +114,8 @@ export function PartnersPage() {
             </select>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create partner
+          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create '}
           </button>
         </Modal>
       )}

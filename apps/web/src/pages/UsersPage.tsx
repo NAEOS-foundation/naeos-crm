@@ -27,12 +27,15 @@ export function UsersPage() {
   const [form, setForm] = useState<UserForm>(EMPTY_FORM)
   const [email, setEmail] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
 
   async function submit() {
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/users', {
         method: 'POST',
@@ -44,6 +47,8 @@ export function UsersPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -103,8 +108,8 @@ export function UsersPage() {
             </select>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create user
+          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create '}
           </button>
         </Modal>
       )}

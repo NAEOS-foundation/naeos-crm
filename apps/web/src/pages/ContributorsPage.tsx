@@ -31,6 +31,7 @@ export function ContributorsPage() {
   const [form, setForm] = useState<ContributorForm>(EMPTY_FORM)
   const [communityId, setCommunityId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading || communities.loading) return <LoadingState />
   if (error || !data || !communities.data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -39,7 +40,9 @@ export function ContributorsPage() {
   const communityNames = new Map((communities.data?.data ?? []).map((community) => [community.id, community.name]))
 
   async function submit() {
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/contributors', {
         method: 'POST',
@@ -55,6 +58,8 @@ export function ContributorsPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -133,8 +138,8 @@ export function ContributorsPage() {
             </select>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create contributor
+          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create utor'}
           </button>
         </Modal>
       )}

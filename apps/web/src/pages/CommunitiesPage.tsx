@@ -27,6 +27,7 @@ export function CommunitiesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<CommunityForm>(EMPTY_FORM)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -34,7 +35,9 @@ export function CommunitiesPage() {
   const canWrite = can(actor, 'community', 'write')
 
   async function submit() {
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/communities', {
         method: 'POST',
@@ -45,6 +48,8 @@ export function CommunitiesPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -105,8 +110,8 @@ export function CommunitiesPage() {
             </select>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create community
+          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create ty'}
           </button>
         </Modal>
       )}

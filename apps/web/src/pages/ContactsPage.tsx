@@ -31,6 +31,7 @@ export function ContactsPage() {
   const [form, setForm] = useState<ContactForm>(EMPTY_FORM)
   const [companyId, setCompanyId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading || companies.loading) return <LoadingState />
   if (error || !data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -43,7 +44,9 @@ export function ContactsPage() {
   const companyNames = new Map((companies.data?.data ?? []).map((company) => [company.id, company.name]))
 
   async function submit() {
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       const body: Record<string, string> = {
         companyId,
@@ -62,6 +65,8 @@ export function ContactsPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -146,8 +151,8 @@ export function ContactsPage() {
             </select>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create contact
+          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create '}
           </button>
         </Modal>
       )}

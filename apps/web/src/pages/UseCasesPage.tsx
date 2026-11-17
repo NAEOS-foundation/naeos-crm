@@ -29,6 +29,7 @@ export function UseCasesPage() {
   const [form, setForm] = useState<UseCaseForm>(EMPTY_FORM)
   const [opportunityId, setOpportunityId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading || opportunities.loading) return <LoadingState />
   if (error || !data || !opportunities.data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -37,7 +38,9 @@ export function UseCasesPage() {
   const opportunityNames = new Map((opportunities.data?.data ?? []).map((opportunity) => [opportunity.id, opportunity.name]))
 
   async function submit() {
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/use-cases', {
         method: 'POST',
@@ -53,6 +56,8 @@ export function UseCasesPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -124,8 +129,8 @@ export function UseCasesPage() {
             />
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create use case
+          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create e'}
           </button>
         </Modal>
       )}

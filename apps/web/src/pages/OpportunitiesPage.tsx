@@ -32,6 +32,7 @@ export function OpportunitiesPage() {
   const [form, setForm] = useState<OpportunityForm>(EMPTY_FORM)
   const [companyId, setCompanyId] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (loading || companies.loading) return <LoadingState />
   if (error || !data || !companies.data) return <ErrorState message={error ?? 'No data'} onRetry={reload} />
@@ -40,7 +41,9 @@ export function OpportunitiesPage() {
   const companyNames = new Map((companies.data?.data ?? []).map((company) => [company.id, company.name]))
 
   async function submit() {
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/opportunities', {
         method: 'POST',
@@ -57,6 +60,8 @@ export function OpportunitiesPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -156,8 +161,8 @@ export function OpportunitiesPage() {
             />
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create opportunity
+          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create nity'}
           </button>
         </Modal>
       )}

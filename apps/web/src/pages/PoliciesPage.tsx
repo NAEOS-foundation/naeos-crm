@@ -33,6 +33,7 @@ export function PoliciesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState<RuleForm>(EMPTY_FORM)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
 
   if (loading) return <LoadingState />
@@ -42,7 +43,9 @@ export function PoliciesPage() {
   const canDelete = can(actor, 'policy', 'delete')
 
   async function submit() {
+    if (isSubmitting) return
     setFormError(null)
+    setIsSubmitting(true)
     try {
       await api('/api/v1/policy/rules', {
         method: 'POST',
@@ -61,6 +64,8 @@ export function PoliciesPage() {
       reload()
     } catch (err) {
       setFormError((err as Error).message)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -163,8 +168,8 @@ export function PoliciesPage() {
             </label>
           </div>
           {formError && <p className="form-error" role="alert" aria-live="polite">{formError}</p>}
-          <button className="btn btn-primary btn-block" onClick={submit}>
-            Create rule
+          <button className="btn btn-primary btn-block" onClick={submit} disabled={isSubmitting}>
+            {isSubmitting ? 'Saving…' : 'Create '}
           </button>
         </Modal>
       )}
