@@ -1219,7 +1219,17 @@ router.get('/api/v1/audit', asyncHandler(async (req, res) => {
     limit: query.limit,
     offset: (query.page - 1) * query.limit,
   })
-  res.json({ data: events, meta: { ...buildPaginatedMeta(req.requestId, total, query.limit, (query.page - 1) * query.limit), integrity: verification } })
+  const integrity = {
+    status: verification.status,
+    checkedEvents: verification.checkedEvents,
+    legacyEvents: verification.legacyEvents,
+    errorCount: verification.issues.filter((issue) => issue.severity === 'error').length,
+    warningCount: verification.issues.filter((issue) => issue.severity === 'warning').length,
+    issueCount: verification.issues.length,
+    truncated: verification.issues.length > 100,
+    issues: verification.issues.slice(0, 100),
+  }
+  res.json({ data: events, meta: { ...buildPaginatedMeta(req.requestId, total, query.limit, (query.page - 1) * query.limit), integrity } })
 }))
 
 // ---------- Policy rules ----------
