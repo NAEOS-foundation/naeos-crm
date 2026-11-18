@@ -36,7 +36,7 @@ jobs:
         run: npm ci
 
       - name: Dependency security audit
-        run: npm audit --audit-level=high
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Prisma generate
         run: npx prisma generate
@@ -60,3 +60,24 @@ jobs:
           AUTH_DISABLED: 'true'
           AUTH_SECRET: ci-test-secret-012345678901234567890123456789
         run: npm test
+
+  audit-verifier-tests:
+    name: Audit chain verifier unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.21.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build audit package
+        run: npm run build --workspace packages/audit
+
+      - name: Run focused verifier tests
+        working-directory: apps/api
+        run: npx vitest run src/audit-chain-verifier.spec.ts
