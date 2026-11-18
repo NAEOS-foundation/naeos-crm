@@ -46,6 +46,11 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/naeos_crm
         run: npx prisma migrate deploy
 
+      - name: Reproduce and verify AuditEvent backfill chain behavior
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/naeos_crm
+        run: npx prisma db execute --file tests/sql/audit-chain-backfill-repro.sql --schema prisma/schema.prisma
+
       - name: Seed test database
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/naeos_crm
