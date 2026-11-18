@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto'
 import { PrismaClient, Prisma } from '@prisma/client'
-import type { AuditEvent, AuditSink } from '@naeos-crm/audit'
+import { computeAuditEventHash, verifyAuditChain } from '@naeos-crm/audit'
+import type { AuditChainVerificationResult, AuditEvent, AuditSink } from '@naeos-crm/audit'
 import type {
   Activity,
   Campaign,
@@ -1119,17 +1119,10 @@ export class PrismaAuditSink implements AuditSink {
       const sequence = (previous?.sequence ?? 0) + 1
       const previousEventHash = previous?.eventHash ?? null
       const schemaVersion = event.schemaVersion ?? '1'
-      const hashPayload = canonicalize({
-        id: event.id, sequence, schemaVersion, previousEventHash,
-        actorId: event.actorId ?? null, actorType: event.actorType ?? null,
-        action: event.action, entityType: event.entityType, entityId: event.entityId,
-        requestId: event.requestId ?? null, source: event.source ?? null,
-        result: event.result, reason: event.reason ?? null,
-        policyVersion: event.policyVersion ?? null,
-        previousState: event.previousState ?? null, newState: event.newState ?? null,
-        authorization: event.authorization ?? null, createdAt: event.createdAt.toISOString(),
-      })
-      const eventHash = createHash('sha256').update(hashPayload).digest('hex')
+      const hashAlgorithm = 'SHA256' as const
+      const hashVersion = 2 as const
+      const hashEvent = { ...event, schemaVersion, hashAlgorithm, hashVersion }
+      const eventHash = computeAuditEventHash(hashEvent, sequence, previousEventHash, hashVersion)
       await tx.auditEvent.create({
         data: {
           id: event.id, actorId: event.actorId, actorType: event.actorType,
@@ -1139,18 +1132,11 @@ export class PrismaAuditSink implements AuditSink {
           previousState: event.previousState as unknown as Prisma.InputJsonValue,
           newState: event.newState as unknown as Prisma.InputJsonValue,
           authorization: event.authorization as unknown as Prisma.InputJsonValue,
-          schemaVersion, sequence, previousEventHash, eventHash, createdAt: event.createdAt,
+          schemaVersion, sequence, previousEventHash, eventHash, hashAlgorithm, hashVersion, createdAt: event.createdAt,
         },
       })
     })
   }
-}
-
-function canonicalize(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value)
-  if (Array.isArray(value)) return '[' + value.map(canonicalize).join(',') + ']'
-  const object = value as Record<string, unknown>
-  return '{' + Object.keys(object).sort().map((key) => JSON.stringify(key) + ':' + canonicalize(object[key])).join(',') + '}'
 }
 
 const normalizeContributor = (contributor: any): Contributor => ({
@@ -1296,10 +1282,14 @@ const normalizeAuditEvent = (event: any): AuditEvent => ({
   sequence: event.sequence ?? undefined,
   previousEventHash: event.previousEventHash ?? undefined,
   eventHash: event.eventHash ?? undefined,
+  hashAlgorithm: event.hashAlgorithm ?? undefined,
+  hashVersion: event.hashVersion ?? undefined,
   createdAt: event.createdAt,
 })
 
 export class PrismaAuditReadPort implements AuditReadPort {
+  constructor(private readonly client: PrismaClient = prisma) {}
+
   async list(params: {
     entityType?: string
     entityId?: string
@@ -1307,25 +1297,25 @@ export class PrismaAuditReadPort implements AuditReadPort {
     requestId?: string
     limit: number
     offset: number
-  }): Promise<{ events: AuditEvent[]; total: number }> {
-    const where: any = {}
-
+  }): Promise<{ events: AuditEvent[]; total: number; verification: AuditChainVerificationResult }> {
+    const where: Prisma.AuditEventWhereInput = {}
     if (params.entityType) where.entityType = params.entityType
     if (params.entityId) where.entityId = params.entityId
     if (params.actorId) where.actorId = params.actorId
     if (params.requestId) where.requestId = params.requestId
 
-    const [events, total] = await Promise.all([
-      prisma.auditEvent.findMany({
+    return this.client.$transaction(async (tx) => {
+      const fullChain = await tx.auditEvent.findMany({ orderBy: { sequence: 'asc' } })
+      const verification = verifyAuditChain(fullChain.map(normalizeAuditEvent))
+      const events = await tx.auditEvent.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ sequence: 'desc' }, { createdAt: 'desc' }],
         take: params.limit,
         skip: params.offset,
-      }),
-      prisma.auditEvent.count({ where }),
-    ])
-
-    return { events: events.map(normalizeAuditEvent), total }
+      })
+      const total = await tx.auditEvent.count({ where })
+      return { events: events.map(normalizeAuditEvent), total, verification }
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead })
   }
 }
 

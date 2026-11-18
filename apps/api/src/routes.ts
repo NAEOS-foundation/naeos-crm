@@ -1211,7 +1211,7 @@ router.get('/api/v1/dashboard', asyncHandler(async (req, res) => {
 router.get('/api/v1/audit', asyncHandler(async (req, res) => {
   if (!(await requireAuth(req, res, 'audit', 'read'))) return
   const query = auditQuerySchema.parse(req.query)
-  const { events, total } = await auditFacade.list({
+  const { events, total, verification } = await auditFacade.list({
     entityType: query.entityType,
     entityId: query.entityId,
     actorId: query.actorId,
@@ -1219,7 +1219,7 @@ router.get('/api/v1/audit', asyncHandler(async (req, res) => {
     limit: query.limit,
     offset: (query.page - 1) * query.limit,
   })
-  res.json({ data: events, meta: buildPaginatedMeta(req.requestId, total, query.limit, (query.page - 1) * query.limit) })
+  res.json({ data: events, meta: { ...buildPaginatedMeta(req.requestId, total, query.limit, (query.page - 1) * query.limit), integrity: verification } })
 }))
 
 // ---------- Policy rules ----------

@@ -315,6 +315,8 @@ model AuditEvent {
   sequence           Int         @default(0)
   previousEventHash  String?
   eventHash          String      @unique
+  hashAlgorithm      String      @default("SHA256")
+  hashVersion        Int         @default(2)
   createdAt          DateTime    @default(now())
 
   @@index([entityType, entityId])

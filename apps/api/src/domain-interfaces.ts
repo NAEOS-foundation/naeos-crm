@@ -25,7 +25,7 @@ import type {
   UseCase,
   User,
 } from '@naeos-crm/domain'
-import type { AuditEvent } from '@naeos-crm/audit'
+import type { AuditChainVerificationResult, AuditEvent } from '@naeos-crm/audit'
 
 export interface PageQuery {
   limit?: number
@@ -239,5 +239,5 @@ export interface AuditReadPort {
     requestId?: string
     limit: number
     offset: number
-  }): Promise<{ events: AuditEvent[]; total: number }>
+  }): Promise<{ events: AuditEvent[]; total: number; verification: AuditChainVerificationResult }>
 }

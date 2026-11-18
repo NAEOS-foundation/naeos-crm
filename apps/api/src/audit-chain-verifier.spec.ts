@@ -28,8 +28,10 @@ function chained(events: AuditEvent[]): AuditEvent[] {
       ...item,
       sequence: index + 1,
       previousEventHash: previousHash ?? undefined,
+      hashAlgorithm: 'SHA256' as const,
+      hashVersion: 2 as const,
     }
-    const eventHash = computeAuditEventHash(next, index + 1, previousHash)
+    const eventHash = computeAuditEventHash(next, index + 1, previousHash, 2)
     previousHash = eventHash
     return { ...next, eventHash }
   })
@@ -90,6 +92,8 @@ describe('AuditEvent chain verifier', () => {
         .update(`${item.id}|${index + 1}|${index === 0 ? '' : 'legacy-1'}`)
         .digest('hex'),
       previousEventHash: undefined,
+      hashAlgorithm: 'MD5' as const,
+      hashVersion: 0 as const,
     }))
 
     const result = verifyAuditChain(legacy)
@@ -105,6 +109,8 @@ describe('AuditEvent chain verifier', () => {
     const legacy = {
       ...event({ id: 'legacy-root', previousEventHash: 'a'.repeat(64) }),
       eventHash: createHash('md5').update('legacy-root|1|').digest('hex'),
+      hashAlgorithm: 'MD5' as const,
+      hashVersion: 0 as const,
     }
 
     const result = verifyAuditChain([legacy])
@@ -113,10 +119,29 @@ describe('AuditEvent chain verifier', () => {
     expect(result.issues.map((issue) => issue.code)).toContain('PREDECESSOR_HASH_MISMATCH')
   })
 
+  it('verifies historical SHA-256 v1 with an explicit legacy warning', () => {
+    const item = event({ hashAlgorithm: 'SHA256', hashVersion: 1 })
+    const legacyV1 = { ...item, eventHash: computeAuditEventHash(item, 1, null, 1) }
+    const result = verifyAuditChain([legacyV1])
+    expect(result.status).toBe('legacy')
+    expect(result.legacyEvents).toBe(1)
+    expect(result.issues.map((issue) => issue.code)).toContain('HASH_METADATA_NOT_BOUND')
+  })
+
+  it('rejects rows without explicit hash metadata', () => {
+    const item = event()
+    const withoutMetadata = { ...item, eventHash: computeAuditEventHash(item, 1, null, 1) }
+    const result = verifyAuditChain([withoutMetadata])
+    expect(result.status).toBe('invalid')
+    expect(result.issues.map((issue) => issue.code)).toContain('MISSING_HASH_METADATA')
+  })
+
   it('rejects a tampered legacy digest', () => {
     const legacy = {
       ...event({ id: 'legacy-1' }),
       eventHash: createHash('md5').update('different').digest('hex'),
+      hashAlgorithm: 'MD5' as const,
+      hashVersion: 0 as const,
     }
 
     const result = verifyAuditChain([legacy])

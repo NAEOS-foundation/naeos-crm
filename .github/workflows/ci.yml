@@ -75,9 +75,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: Build audit package
         run: npm run build --workspace packages/audit
 
-      - name: Run focused verifier tests
+      - name: Build API package
+        run: npm run build --workspace apps/api
+
+      - name: Run focused audit integrity tests
         working-directory: apps/api
-        run: npx vitest run src/audit-chain-verifier.spec.ts
+        run: npx vitest run src/audit-chain-verifier.spec.ts src/audit-read-port.spec.ts
