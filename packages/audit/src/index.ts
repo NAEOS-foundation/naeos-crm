@@ -77,3 +77,14 @@ export class AuditService {
 function generateAuditId(): string {
   return `audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
+
+export {
+  canonicalizeAuditValue,
+  computeAuditEventHash,
+  verifyAuditChain,
+} from './chain-verifier'
+export type {
+  AuditChainVerificationIssue,
+  AuditChainVerificationResult,
+  AuditChainVerificationStatus,
+} from './chain-verifier'
