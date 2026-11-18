@@ -21,7 +21,7 @@
   "devDependencies": {
     "eslint-plugin-react-hooks": "^7.1.1",
     "ts-node": "^10.9.2",
-    "typescript-eslint": "^8.70.0"
+    "typescript-eslint": "^8.73.0"
   },
   "allowScripts": {
     "@prisma/client@5.22.0": true,
@@ -35,6 +35,7 @@
   },
   "overrides": {
     "brace-expansion": "1.1.21",
-    "vite": "6.4.5"
+    "vite": "6.4.5",
+    "qs": "6.17.1"
   }
 }
