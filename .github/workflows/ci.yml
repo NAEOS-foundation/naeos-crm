@@ -7,6 +7,37 @@ on:
   workflow_dispatch:
 
 jobs:
+  audit-backfill-repro:
+    name: AuditEvent backfill regression (isolated PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: audit_repro
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d audit_repro"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+
+      - name: Reproduce and verify historical backfill behavior
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql --host=localhost --port=5432 --username=postgres --dbname=audit_repro --set=ON_ERROR_STOP=1 --file=tests/sql/audit-chain-backfill-repro.sql
+
   build:
     runs-on: ubuntu-latest
     services:
@@ -45,11 +76,6 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/naeos_crm
         run: npx prisma migrate deploy
-
-      - name: Reproduce and verify AuditEvent backfill chain behavior
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/naeos_crm
-        run: npx prisma db execute --file tests/sql/audit-chain-backfill-repro.sql --schema prisma/schema.prisma
 
       - name: Seed test database
         env:
