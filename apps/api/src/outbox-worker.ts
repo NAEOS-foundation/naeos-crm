@@ -10,21 +10,22 @@ export interface OutboxWorkerOptions {
 
 export class OutboxWorker {
   private readonly pollIntervalMs: number
-  private readonly onResult?: OutboxWorkerOptions['onResult']
-  private readonly sleep: (ms: number) => Promise<void>
   private readonly errorBackoffMaxMs: number
+  private readonly onResult?: OutboxWorkerOptions['onResult']
+  private readonly sleep?: OutboxWorkerOptions['sleep']
   private readonly random: () => number
-  private consecutiveErrors = 0
   private running = false
+  private consecutiveErrors = 0
+  private wakeSleep?: () => void
 
   constructor(
     private readonly dispatcher: OutboxDispatcher,
     options: OutboxWorkerOptions = {},
   ) {
-    this.pollIntervalMs = options.pollIntervalMs ?? 5_000
-    this.onResult = options.onResult
+    this.pollIntervalMs = Math.max(1, options.pollIntervalMs ?? 5_000)
     this.errorBackoffMaxMs = Math.max(options.errorBackoffMaxMs ?? 60_000, this.pollIntervalMs)
-    this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+    this.onResult = options.onResult
+    this.sleep = options.sleep
     this.random = options.random ?? Math.random
   }
 
@@ -44,7 +45,25 @@ export class OutboxWorker {
     const exponent = Math.min(this.consecutiveErrors - 1, 20)
     const baseDelay = Math.min(this.pollIntervalMs * 2 ** exponent, this.errorBackoffMaxMs)
     // Jitter in [0.5, 1.5) avoids synchronized retries across API replicas.
-    return Math.min(Math.round(baseDelay * (0.5 + this.random())), this.errorBackoffMaxMs)
+    const jitteredDelay = baseDelay * (0.5 + Math.min(Math.max(this.random(), 0), 0.999999))
+    return Math.min(Math.round(jitteredDelay), this.errorBackoffMaxMs)
+  }
+
+  private wait(ms: number): Promise<void> {
+    if (this.sleep) return this.sleep(ms)
+
+    return new Promise((resolve) => {
+      let settled = false
+      const finish = () => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        this.wakeSleep = undefined
+        resolve()
+      }
+      const timer = setTimeout(finish, ms)
+      this.wakeSleep = finish
+    })
   }
 
   async start(): Promise<void> {
@@ -55,7 +74,7 @@ export class OutboxWorker {
       try {
         const result = await this.runOnce()
         this.consecutiveErrors = 0
-        if (result.status === 'PENDING') await this.sleep(this.pollIntervalMs)
+        if (this.running && result.status === 'PENDING') await this.wait(this.pollIntervalMs)
       } catch (error) {
         this.consecutiveErrors += 1
         const retryInMs = this.nextErrorDelayMs()
@@ -65,13 +84,14 @@ export class OutboxWorker {
           retryInMs,
           error: error instanceof Error ? error.message : String(error),
         }))
-        await this.sleep(retryInMs)
+        if (this.running) await this.wait(retryInMs)
       }
     }
   }
 
   stop(): void {
     this.running = false
+    this.wakeSleep?.()
   }
 }
 

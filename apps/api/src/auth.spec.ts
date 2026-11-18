@@ -106,6 +106,30 @@ describe('ApiAuthGuard', () => {
     ).toBe(false)
   })
 
+  it('restricts Intelligence engineering analysis to administrators', () => {
+    expect(
+      guard.authorize(
+        { actor: { id: 'admin', email: 'admin@example.com', roles: ['admin'] } },
+        'intelligence',
+        'analyze',
+      ).allow,
+    ).toBe(true)
+    expect(
+      guard.authorize(
+        { actor: { id: 'manager', email: 'manager@example.com', roles: ['manager'] } },
+        'intelligence',
+        'analyze',
+      ).allow,
+    ).toBe(false)
+    expect(
+      guard.authorize(
+        { actor: { id: 'member', email: 'member@example.com', roles: ['member'] } },
+        'intelligence',
+        'analyze',
+      ).allow,
+    ).toBe(false)
+  })
+
   it('controls pipeline and campaign administration by role', () => {
     expect(
       guard.authorize(

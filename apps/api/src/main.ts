@@ -38,6 +38,8 @@ bootstrapAuthUser()
       )
       worker = new OutboxWorker(dispatcher, {
         pollIntervalMs: outboxPollIntervalMs,
+        errorBackoffMaxMs: Number(process.env.OUTBOX_ERROR_BACKOFF_MAX_MS ?? 60_000),
+
         onResult: (result) => {
           if (result.status !== 'PENDING') {
             console.log(JSON.stringify({
@@ -63,6 +65,7 @@ bootstrapAuthUser()
       worker?.stop()
       server.close(() => {
         void (async () => {
+          // Keep Prisma connected until an in-flight Outbox dispatch has settled.
           // Keep Prisma available until any in-flight Outbox dispatch has settled.
           await workerTask?.catch((error) => {
             console.error(JSON.stringify({
@@ -87,11 +90,12 @@ bootstrapAuthUser()
     process.once('SIGTERM', () => shutdown('SIGTERM'))
     process.once('SIGINT', () => shutdown('SIGINT'))
   })
-  .catch((error) => {
+  .catch(async (error) => {
     console.error(JSON.stringify({
       event: 'startup_failed',
       service: 'naeos-crm-api',
       error: error instanceof Error ? error.message : String(error),
     }))
+    await prisma.$disconnect().catch(() => undefined)
     process.exit(1)
   })

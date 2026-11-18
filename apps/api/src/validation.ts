@@ -1,4 +1,5 @@
-import { z } from 'zod'
+// Keep Zod 3 schema semantics while consuming the patched Zod 4 package.
+import { z } from 'zod/v3'
 
 export const paginationSchema = z.object({
   page: z.coerce.number().int().positive().default(1),

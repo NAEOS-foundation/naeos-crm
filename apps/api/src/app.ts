@@ -15,7 +15,8 @@ export function createApp() {
   app.set('trust proxy', 1)
 
   const allowedOrigins = new Set(
-    (process.env.CORS_ORIGINS ?? 'https://crm.naeos.dev,https://naeos.dev')
+    [process.env.CORS_ORIGINS ?? 'https://crm.naeos.dev,https://naeos.dev', process.env.CORS_PREVIEW_ORIGINS ?? '']
+      .join(',')
       .split(',')
       .map((origin) => origin.trim())
       .filter(Boolean),
