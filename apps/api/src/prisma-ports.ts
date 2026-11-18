@@ -1289,29 +1289,18 @@ const normalizeAuditEvent = (event: any): AuditEvent => ({
 
 export class PrismaAuditReadPort implements AuditReadPort {
   constructor(private readonly client: PrismaClient = prisma) {}
-
-  async list(params: {
-    entityType?: string
-    entityId?: string
-    actorId?: string
-    requestId?: string
-    limit: number
-    offset: number
-  }): Promise<{ events: AuditEvent[]; total: number; verification: AuditChainVerificationResult }> {
+  async list(params: { entityType?: string; entityId?: string; actorId?: string; requestId?: string; limit: number; offset: number }): Promise<{ events: AuditEvent[]; total: number; verification: AuditChainVerificationResult }> {
     const where: Prisma.AuditEventWhereInput = {}
     if (params.entityType) where.entityType = params.entityType
     if (params.entityId) where.entityId = params.entityId
     if (params.actorId) where.actorId = params.actorId
     if (params.requestId) where.requestId = params.requestId
-
     return this.client.$transaction(async (tx) => {
       const fullChain = await tx.auditEvent.findMany({ orderBy: { sequence: 'asc' } })
       const verification = verifyAuditChain(fullChain.map(normalizeAuditEvent))
       const events = await tx.auditEvent.findMany({
-        where,
-        orderBy: [{ sequence: 'desc' }, { createdAt: 'desc' }],
-        take: params.limit,
-        skip: params.offset,
+        where, orderBy: [{ sequence: 'desc' }, { createdAt: 'desc' }],
+        take: params.limit, skip: params.offset,
       })
       const total = await tx.auditEvent.count({ where })
       return { events: events.map(normalizeAuditEvent), total, verification }
