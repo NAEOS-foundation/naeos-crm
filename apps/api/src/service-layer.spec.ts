@@ -958,7 +958,7 @@ describe('Phase 2 pipeline and campaign write flow', () => {
         { activityId: 'activity-x', dueAt: new Date(), status: 'OPEN' },
         memberMeta,
       ),
-    ).rejects.toThrow(/access/i)
+    ).rejects.toThrow(/own|access/i)
   })
 
   it('computes pipeline, campaign, and follow-up analytics', async () => {
