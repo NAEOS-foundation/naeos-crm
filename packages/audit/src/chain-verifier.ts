@@ -10,15 +10,25 @@ export interface AuditChainVerificationIssue {
 export interface AuditChainVerificationResult { status: AuditChainVerificationStatus; checkedEvents: number; legacyEvents: number; issues: AuditChainVerificationIssue[] }
 export function canonicalizeAuditValue(value: unknown): string {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value)
-  if (typeof value === 'number') { if (!Number.isFinite(value)) throw new TypeError('Audit payload numbers must be finite'); return JSON.stringify(value) }
-  if (Array.isArray(value)) return '[' + value.map(canonicalizeAuditValue).join(',') + ']'
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) throw new TypeError('Audit payload numbers must be finite')
+    return JSON.stringify(value)
+  }
+  if (value instanceof Date) return JSON.stringify(value.toISOString())
+  if (value === undefined) return 'null'
+  if (Array.isArray(value)) return '[' + value.map((item) => (item === undefined ? 'null' : canonicalizeAuditValue(item))).join(',') + ']'
   if (typeof value === 'object') {
     const prototype = Object.getPrototypeOf(value)
-    if (prototype !== Object.prototype && prototype !== null) throw new TypeError('Audit payload objects must be plain JSON objects')
+    if (prototype !== Object.prototype && prototype !== null) {
+      const maybeToJson = (value as { toJSON?: () => unknown }).toJSON
+      if (typeof maybeToJson === 'function') return canonicalizeAuditValue(maybeToJson.call(value))
+      throw new TypeError('Audit payload objects must be plain JSON objects')
+    }
     const object = value as Record<string, unknown>
-    return '{' + Object.keys(object).sort().map((key) => {
-      if (object[key] === undefined) throw new TypeError(`Audit payload property "${key}" cannot be undefined`)
-      return JSON.stringify(key) + ':' + canonicalizeAuditValue(object[key])
+    return '{' + Object.keys(object).sort().flatMap((key) => {
+      const v = object[key]
+      if (v === undefined || typeof v === 'function' || typeof v === 'symbol') return []
+      return [JSON.stringify(key) + ':' + canonicalizeAuditValue(v)]
     }).join(',') + '}'
   }
   throw new TypeError(`Unsupported audit payload value: ${typeof value}`)
