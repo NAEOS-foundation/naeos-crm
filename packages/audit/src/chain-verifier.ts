@@ -153,7 +153,9 @@ export function verifyAuditChain(events: readonly AuditEvent[]): AuditChainVerif
         addError('EVENT_HASH_MISMATCH', event, 'Legacy MD5 digest does not match its historical id/sequence/predecessor-id input')
       }
 
-      if (predecessor && !event.previousEventHash) {
+      if (!predecessor && event.previousEventHash) {
+        addError('PREDECESSOR_HASH_MISMATCH', event, 'The first event in the chain must not reference a predecessor hash')
+      } else if (predecessor && !event.previousEventHash) {
         issues.push({
           code: 'LEGACY_PREDECESSOR_LINK_MISSING',
           severity: 'warning',

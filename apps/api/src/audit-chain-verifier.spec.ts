@@ -100,6 +100,19 @@ describe('AuditEvent chain verifier', () => {
     expect(result.issues.map((issue) => issue.code)).toContain('LEGACY_PREDECESSOR_LINK_MISSING')
   })
 
+
+  it('rejects a legacy root event that claims a predecessor', () => {
+    const legacy = {
+      ...event({ id: 'legacy-root', previousEventHash: 'a'.repeat(64) }),
+      eventHash: createHash('md5').update('legacy-root|1|').digest('hex'),
+    }
+
+    const result = verifyAuditChain([legacy])
+
+    expect(result.status).toBe('invalid')
+    expect(result.issues.map((issue) => issue.code)).toContain('PREDECESSOR_HASH_MISMATCH')
+  })
+
   it('rejects a tampered legacy digest', () => {
     const legacy = {
       ...event({ id: 'legacy-1' }),
