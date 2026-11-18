@@ -22,7 +22,7 @@ import type {
   UseCase,
   DashboardSummary,
 } from '@naeos-crm/domain'
-import type { AuditService, AuditEvent } from '@naeos-crm/audit'
+import type { AuditChainVerificationResult, AuditService, AuditEvent } from '@naeos-crm/audit'
 
 import type {
   ActivityReadPort,
@@ -1410,7 +1410,7 @@ export class AuditFacade {
     requestId?: string
     limit: number
     offset: number
-  }): Promise<{ events: AuditEvent[]; total: number }> {
+  }): Promise<{ events: AuditEvent[]; total: number; verification: AuditChainVerificationResult }> {
     return this.auditReadPort.list(params)
   }
 }

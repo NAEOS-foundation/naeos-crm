@@ -1,4 +1,6 @@
 export type AuditResult = 'SUCCESS' | 'FAILURE'
+export type AuditHashAlgorithm = 'MD5' | 'SHA256'
+export type AuditHashVersion = 0 | 1 | 2
 
 export interface AuditEvent {
   id: string
@@ -26,6 +28,8 @@ export interface AuditEvent {
   schemaVersion?: string
   previousEventHash?: string
   eventHash?: string
+  hashAlgorithm?: AuditHashAlgorithm
+  hashVersion?: AuditHashVersion
 }
 
 export interface AuditSink {
