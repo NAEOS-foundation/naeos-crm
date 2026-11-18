@@ -27,6 +27,7 @@ describe('PrismaAuditReadPort integrity verification', () => {
     const client = { $transaction: transaction } as unknown as PrismaClient
     const result = await new PrismaAuditReadPort(client).list({ entityType: 'company', entityId: 'company-2', limit: 1, offset: 0 })
     expect(transaction).toHaveBeenCalledOnce()
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'RepeatableRead' })
     expect(findMany).toHaveBeenNthCalledWith(1, { orderBy: { sequence: 'asc' } })
     expect(findMany).toHaveBeenNthCalledWith(2, { where: { entityType: 'company', entityId: 'company-2' }, orderBy: [{ sequence: 'desc' }, { createdAt: 'desc' }], take: 1, skip: 0 })
     expect(result.events.map((event) => event.id)).toEqual(['audit-2'])

@@ -136,6 +136,14 @@ describe('AuditEvent chain verifier', () => {
     expect(result.issues.map((issue) => issue.code)).toContain('MISSING_HASH_METADATA')
   })
 
+  it('detects tampering with the v2 hash version metadata', () => {
+    const [first] = chained([event()])
+    const tampered = { ...first, hashVersion: 1 as const }
+    const result = verifyAuditChain([tampered])
+    expect(result.status).toBe('invalid')
+    expect(result.issues.map((issue) => issue.code)).toContain('EVENT_HASH_MISMATCH')
+  })
+
   it('rejects a tampered legacy digest', () => {
     const legacy = {
       ...event({ id: 'legacy-1' }),

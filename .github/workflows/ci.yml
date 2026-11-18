@@ -62,8 +62,22 @@ jobs:
         run: npm test
 
   audit-verifier-tests:
-    name: Audit chain verifier unit tests
+    name: Audit chain integrity and migration tests
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: naeos_crm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v5
 
@@ -78,11 +92,13 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
-      - name: Build audit package
-        run: npm run build --workspace packages/audit
+      - name: Apply migrations to isolated PostgreSQL
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/naeos_crm
+        run: npx prisma migrate deploy
 
-      - name: Build API package
-        run: npm run build --workspace apps/api
+      - name: Build all workspaces
+        run: npm run build --workspaces --if-present
 
       - name: Run focused audit integrity tests
         working-directory: apps/api
