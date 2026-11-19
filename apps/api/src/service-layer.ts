@@ -1452,11 +1452,25 @@ export class PolicyRuleFacade {
 
   async updatePolicyRule(id: string, input: Partial<PolicyRule>, auditMeta: AuditMetadata) {
     await this.assertAdmin(auditMeta.actor)
+
+    if (this.policyRuleReadPort.updateWithAudit) {
+      const event: AuditEvent = {
+        id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        actorId: auditMeta.actorId,
+        action: 'policy-rule.updated',
+        entityType: 'policy-rule',
+        entityId: id,
+        requestId: auditMeta.requestId,
+        result: 'SUCCESS',
+        createdAt: new Date(),
+      }
+      return this.policyRuleReadPort.updateWithAudit(id, input, event)
+    }
+
+    // Compatibility path for in-memory test adapters and non-transactional ports.
     const previous = await this.policyRuleReadPort.findById(id)
     const rule = await this.policyRuleReadPort.update(id, input)
-
     if (!rule) return null
-
     await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
       action: 'policy-rule.updated',

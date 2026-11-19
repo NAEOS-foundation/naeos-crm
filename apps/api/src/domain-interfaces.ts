@@ -192,6 +192,8 @@ export interface PolicyRuleReadPort {
   findForEvaluation(resource: string, action: string, roles: User['roles']): Promise<PolicyRule[]>
   create(input: Omit<PolicyRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<PolicyRule>
   update(id: string, input: Partial<PolicyRule>): Promise<PolicyRule | null>
+  /** Optional atomic update+audit implementation for database-backed adapters. */
+  updateWithAudit?(id: string, input: Partial<PolicyRule>, event: AuditEvent): Promise<PolicyRule | null>
   delete(id: string): Promise<boolean>
 }
 

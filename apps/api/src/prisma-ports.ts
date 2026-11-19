@@ -1108,44 +1108,45 @@ export class PrismaDashboardReadPort implements DashboardReadPort {
   }
 }
 
-export class PrismaAuditSink implements AuditSink {
-  async append(event: AuditEvent): Promise<void> {
-    await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext('naeos.audit.chain'))")
-      const previous = await tx.auditEvent.findFirst({
-        orderBy: { sequence: 'desc' },
-        select: { sequence: true, eventHash: true },
-      })
-      const sequence = (previous?.sequence ?? 0) + 1
-      const previousEventHash = previous?.eventHash ?? null
-      const schemaVersion = event.schemaVersion ?? '1'
-      const hashPayload = canonicalize({
-        id: event.id, sequence, schemaVersion, previousEventHash,
-        actorId: event.actorId ?? null, actorType: event.actorType ?? null,
-        action: event.action, entityType: event.entityType, entityId: event.entityId,
-        requestId: event.requestId ?? null, source: event.source ?? null,
-        result: event.result, reason: event.reason ?? null,
-        policyVersion: event.policyVersion ?? null,
-        previousState: event.previousState ?? null, newState: event.newState ?? null,
-        authorization: event.authorization ?? null, createdAt: event.createdAt.toISOString(),
-      })
-      const eventHash = createHash('sha256').update(hashPayload).digest('hex')
-      await tx.auditEvent.create({
-        data: {
-          id: event.id, actorId: event.actorId, actorType: event.actorType,
-          action: event.action, entityType: event.entityType, entityId: event.entityId,
-          requestId: event.requestId, source: event.source, result: event.result,
-          reason: event.reason, policyVersion: event.policyVersion,
-          previousState: event.previousState as unknown as Prisma.InputJsonValue,
-          newState: event.newState as unknown as Prisma.InputJsonValue,
-          authorization: event.authorization as unknown as Prisma.InputJsonValue,
-          schemaVersion, sequence, previousEventHash, eventHash, createdAt: event.createdAt,
-        },
-      })
-    })
-  }
+async function appendAuditEventToTransaction(tx: Prisma.TransactionClient, event: AuditEvent): Promise<void> {
+  await tx.$executeRawUnsafe("SELECT pg_advisory_xact_lock(hashtext('naeos.audit.chain'))")
+  const previous = await tx.auditEvent.findFirst({
+    orderBy: { sequence: 'desc' },
+    select: { sequence: true, eventHash: true },
+  })
+  const sequence = (previous?.sequence ?? 0) + 1
+  const previousEventHash = previous?.eventHash ?? null
+  const schemaVersion = event.schemaVersion ?? '1'
+  const hashPayload = canonicalize({
+    id: event.id, sequence, schemaVersion, previousEventHash,
+    actorId: event.actorId ?? null, actorType: event.actorType ?? null,
+    action: event.action, entityType: event.entityType, entityId: event.entityId,
+    requestId: event.requestId ?? null, source: event.source ?? null,
+    result: event.result, reason: event.reason ?? null,
+    policyVersion: event.policyVersion ?? null,
+    previousState: event.previousState ?? null, newState: event.newState ?? null,
+    authorization: event.authorization ?? null, createdAt: event.createdAt.toISOString(),
+  })
+  const eventHash = createHash('sha256').update(hashPayload).digest('hex')
+  await tx.auditEvent.create({
+    data: {
+      id: event.id, actorId: event.actorId, actorType: event.actorType,
+      action: event.action, entityType: event.entityType, entityId: event.entityId,
+      requestId: event.requestId, source: event.source, result: event.result,
+      reason: event.reason, policyVersion: event.policyVersion,
+      previousState: event.previousState as unknown as Prisma.InputJsonValue,
+      newState: event.newState as unknown as Prisma.InputJsonValue,
+      authorization: event.authorization as unknown as Prisma.InputJsonValue,
+      schemaVersion, sequence, previousEventHash, eventHash, createdAt: event.createdAt,
+    },
+  })
 }
 
+export class PrismaAuditSink implements AuditSink {
+  async append(event: AuditEvent): Promise<void> {
+    await prisma.$transaction(async (tx) => appendAuditEventToTransaction(tx, event))
+  }
+}
 function canonicalize(value: unknown): string {
   if (value === null || typeof value !== 'object') return JSON.stringify(value)
   if (Array.isArray(value)) return '[' + value.map(canonicalize).join(',') + ']'
@@ -1689,6 +1690,28 @@ export class PrismaPolicyRuleReadPort implements PolicyRuleReadPort {
         data: { ...input, updatedAt: new Date() },
       })
       return normalizePolicyRule(rule)
+    } catch (err) {
+      if (isPrismaNotFound(err)) return null
+      throw translatePrismaError(err)
+    }
+  }
+
+  async updateWithAudit(id: string, input: Partial<PolicyRule>, event: AuditEvent): Promise<PolicyRule | null> {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const previous = await tx.policyRule.findUnique({ where: { id } })
+        if (!previous) return null
+        const updated = await tx.policyRule.update({
+          where: { id },
+          data: { ...input, updatedAt: new Date() },
+        })
+        await appendAuditEventToTransaction(tx, {
+          ...event,
+          previousState: normalizePolicyRule(previous) as unknown as Record<string, unknown>,
+          newState: normalizePolicyRule(updated) as unknown as Record<string, unknown>,
+        })
+        return normalizePolicyRule(updated)
+      })
     } catch (err) {
       if (isPrismaNotFound(err)) return null
       throw translatePrismaError(err)
