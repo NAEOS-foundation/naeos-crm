@@ -1,8 +1,9 @@
-import { describe, expect, it, beforeAll } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import request from 'supertest'
 import type { Express } from 'express'
 import { createApp } from './app'
-import { PrismaGoGateRequestReadPort } from './prisma-ports'
+import { PrismaGoGateRequestReadPort, prisma } from './prisma-ports'
+import { assertLocalTestDatabase } from './test-database-guard'
 
 const devHeader = (roles: string[], id = 'test-user') => ({
   'x-naeos-dev-user': JSON.stringify({ id, email: `test@naeos.local`, roles }),
@@ -10,6 +11,38 @@ const devHeader = (roles: string[], id = 'test-user') => ({
 
 const admin = devHeader(['admin'])
 const member = devHeader(['member'])
+
+const originalAuthDisabled = process.env.AUTH_DISABLED
+
+beforeAll(() => {
+  assertLocalTestDatabase()
+  // Most integration cases use the explicit x-naeos-dev-user test actor.
+  // Secure-mode cases temporarily switch this off via withAuthDisabled().
+  process.env.AUTH_DISABLED = 'true'
+})
+
+afterAll(async () => {
+  if (originalAuthDisabled === undefined) {
+    delete process.env.AUTH_DISABLED
+  } else {
+    process.env.AUTH_DISABLED = originalAuthDisabled
+  }
+  await prisma.$disconnect()
+})
+
+async function withAuthDisabled(run: () => Promise<void>): Promise<void> {
+  const original = process.env.AUTH_DISABLED
+  process.env.AUTH_DISABLED = 'false'
+  try {
+    await run()
+  } finally {
+    if (original === undefined) {
+      delete process.env.AUTH_DISABLED
+    } else {
+      process.env.AUTH_DISABLED = original
+    }
+  }
+}
 
 describe('Public assessment intake', () => {
   it('accepts an assessment request without authentication and creates CRM records', async () => {
@@ -75,12 +108,11 @@ describe('Phase 1 API integration', () => {
   })
 
   it('rejects unauthenticated access in secure mode only', async () => {
-    const original = process.env.AUTH_DISABLED
-    process.env.AUTH_DISABLED = 'false'
-    const secureApp = createApp()
-    const response = await request(secureApp).get('/api/v1/users')
-    expect(response.status).toBe(401)
-    process.env.AUTH_DISABLED = original ?? 'true'
+    await withAuthDisabled(async () => {
+      const secureApp = createApp()
+      const response = await request(secureApp).get('/api/v1/users')
+      expect(response.status).toBe(401)
+    })
   })
 
   describe('Current actor', () => {
@@ -92,12 +124,11 @@ describe('Phase 1 API integration', () => {
     })
 
     it('rejects /me requests without an actor in secure mode', async () => {
-      const original = process.env.AUTH_DISABLED
-      process.env.AUTH_DISABLED = 'false'
-      const secureApp = createApp()
-      const response = await request(secureApp).get('/api/v1/me')
-      expect(response.status).toBe(401)
-      process.env.AUTH_DISABLED = original ?? 'true'
+      await withAuthDisabled(async () => {
+        const secureApp = createApp()
+        const response = await request(secureApp).get('/api/v1/me')
+        expect(response.status).toBe(401)
+      })
     })
   })
 
