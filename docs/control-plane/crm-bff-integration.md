@@ -57,9 +57,9 @@ The BFF does not expose policy mutation, approvals, execution, deployment, datab
 
 - Generate the private key outside the repository and inject it through the CRM API secret manager.
 - Publish only the public key through JWKS.
-- Use a new unique `kid` for rotation. Publish the new public key before switching the signer.
-- Keep the previous public key published until all assertions signed with it have expired and the Control Plane JWKS cache has refreshed.
-- Revoke the old key by removing it from JWKS after the overlap window.
+- Use a new unique `kid` for rotation. The current v1 JWKS endpoint publishes only the active key and does not support overlapping keys.
+- Perform rotation in a coordinated maintenance window: deploy the new private key and `kid`, then allow the Control Plane's five-minute JWKS cache to expire before relying on the new signer. New assertions may be rejected during this cache-refresh window.
+- Existing assertions expire after 60 seconds. Treat rotation as a short, planned read-only integration interruption until both services have converged.
 - Never reuse the CRM session `AUTH_SECRET` as a service signing key.
 
 ## Deployment boundary
