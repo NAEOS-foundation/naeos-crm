@@ -1373,7 +1373,6 @@ async function proxyControlPlaneRead(req: Request, res: Response, path: string, 
     return
   }
 
-  let upstreamStatus = 503
   try {
     const base = new URL(configuredBase)
     const localHTTP = process.env.NODE_ENV !== 'production' && base.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(base.hostname)
@@ -1394,7 +1393,6 @@ async function proxyControlPlaneRead(req: Request, res: Response, path: string, 
       redirect: 'error',
       signal: AbortSignal.timeout(5000),
     })
-    upstreamStatus = upstream.status
 
     if (!upstream.ok) {
       await auditService.record({
