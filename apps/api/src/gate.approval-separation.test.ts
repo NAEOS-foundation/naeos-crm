@@ -56,7 +56,6 @@ describe('GoGateService approval separation of duties', () => {
     expect(transition).not.toHaveBeenCalled()
     expect(auditSink.append).not.toHaveBeenCalled()
   })
-})
 
   it('rejects self-rejection before changing request state or writing a rejection audit event', async () => {
     const current = {
