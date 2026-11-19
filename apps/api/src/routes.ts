@@ -60,6 +60,7 @@ import {
 } from './prisma-ports'
 import { ApiAuthGuard } from './auth'
 import { asyncHandler } from './middleware'
+import { createControlPlaneAssertion } from './control-plane-identity'
 import { EmailAdapter, GitHubAdapter } from './integration-adapters'
 import { NAEOSPolicyAdapter } from './policy-adapter'
 import { analyzeEngineeringRepository, IntelligenceUnavailableError } from './intelligence-client'
@@ -1356,4 +1357,133 @@ router.post('/api/v1/go-gate/:id/execute', asyncHandler(async (req, res) => {
     source: 'api',
   })
   res.json({ data: request, meta: buildSuccessMeta(req.requestId) })
+}))
+
+ 
+// ---------- Internal Control Plane read-only BFF ----------
+
+async function proxyControlPlaneRead(req: Request, res: Response, path: string, query?: URLSearchParams) {
+  const actor = req.actor
+  if (!actor || !(await requireAuth(req, res, 'control-plane', 'read'))) return
+
+  const configuredBase = process.env.CONTROLPLANE_API_URL?.trim()
+  if (!configuredBase) {
+    res.setHeader('Cache-Control', 'no-store')
+    res.status(503).json(buildErrorResponse('CONTROL_PLANE_UNAVAILABLE', 'Control Plane integration is not configured', req.requestId))
+    return
+  }
+
+  let upstreamStatus = 503
+  try {
+    const base = new URL(configuredBase)
+    const localHTTP = process.env.NODE_ENV !== 'production' && base.protocol === 'http:' && ['localhost', '127.0.0.1', '::1'].includes(base.hostname)
+    if ((!localHTTP && base.protocol !== 'https:') || base.username || base.password || base.search || base.hash) {
+      throw new Error('Control Plane API URL must be a trusted HTTPS endpoint')
+    }
+    const target = new URL(path, base)
+    if (query) target.search = query.toString()
+
+    const assertion = createControlPlaneAssertion(actor.id)
+    const upstream = await fetch(target, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${assertion}`,
+        Accept: 'application/json',
+        ...(req.requestId ? { 'X-Request-Id': req.requestId } : {}),
+      },
+      redirect: 'error',
+      signal: AbortSignal.timeout(5000),
+    })
+    upstreamStatus = upstream.status
+
+    if (!upstream.ok) {
+      await auditService.record({
+        actorId: actor.id,
+        actorType: 'user',
+        action: `control-plane.${path.endsWith('/overview') ? 'overview' : 'decisions'}.read`,
+        entityType: 'control-plane',
+        entityId: 'read-api',
+        requestId: req.requestId,
+        source: 'api',
+        result: 'FAILURE',
+        reason: `upstream-status-${upstream.status}`,
+        authorization: { allowed: true },
+      })
+      res.setHeader('Cache-Control', 'no-store')
+      res.status(upstream.status >= 500 ? 503 : upstream.status).json(
+        buildErrorResponse('CONTROL_PLANE_UPSTREAM_ERROR', 'Control Plane read request failed', req.requestId),
+      )
+      return
+    }
+
+    const body = await upstream.text()
+    if (Buffer.byteLength(body, 'utf8') > 1_048_576) {
+      throw new Error('Control Plane response exceeded the maximum size')
+    }
+    let payload: unknown
+    try {
+      payload = JSON.parse(body)
+    } catch {
+      throw new Error('Control Plane returned an invalid response')
+    }
+
+    await auditService.record({
+      actorId: actor.id,
+      actorType: 'user',
+      action: `control-plane.${path.endsWith('/overview') ? 'overview' : 'decisions'}.read`,
+      entityType: 'control-plane',
+      entityId: 'read-api',
+      requestId: req.requestId,
+      source: 'api',
+      result: 'SUCCESS',
+      reason: 'read-only Control Plane data retrieved',
+      authorization: { allowed: true },
+    })
+    res.setHeader('Cache-Control', 'no-store')
+    res.status(200).json(payload)
+  } catch {
+    try {
+      await auditService.record({
+        actorId: actor.id,
+        actorType: 'user',
+        action: `control-plane.${path.endsWith('/overview') ? 'overview' : 'decisions'}.read`,
+        entityType: 'control-plane',
+        entityId: 'read-api',
+        requestId: req.requestId,
+        source: 'api',
+        result: 'FAILURE',
+        reason: 'upstream-unavailable-or-invalid-response',
+        authorization: { allowed: true },
+      })
+    } catch {
+      // The request remains denied when its audit record cannot be persisted.
+    }
+    res.setHeader('Cache-Control', 'no-store')
+    res.status(503).json(buildErrorResponse('CONTROL_PLANE_UNAVAILABLE', 'Control Plane read service is unavailable', req.requestId))
+  }
+}
+
+router.get('/api/v1/control-plane/overview', asyncHandler(async (req, res) => {
+  await proxyControlPlaneRead(req, res, '/api/control-plane/overview')
+}))
+
+router.get('/api/v1/control-plane/decisions', asyncHandler(async (req, res) => {
+  const query = new URLSearchParams()
+  const limitRaw = req.query.limit
+  const afterRaw = req.query.after
+  if (limitRaw !== undefined) {
+    if (typeof limitRaw !== 'string' || !/^\\d+$/.test(limitRaw) || Number(limitRaw) < 1 || Number(limitRaw) > 100) {
+      res.status(400).json(buildErrorResponse('VALIDATION_ERROR', 'limit must be an integer from 1 to 100', req.requestId))
+      return
+    }
+    query.set('limit', limitRaw)
+  }
+  if (afterRaw !== undefined) {
+    if (typeof afterRaw !== 'string' || !/^\\d+$/.test(afterRaw) || !Number.isSafeInteger(Number(afterRaw))) {
+      res.status(400).json(buildErrorResponse('VALIDATION_ERROR', 'after must be a non-negative integer cursor', req.requestId))
+      return
+    }
+    query.set('after', afterRaw)
+  }
+  await proxyControlPlaneRead(req, res, '/api/control-plane/decisions', query)
 }))
