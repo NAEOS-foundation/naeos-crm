@@ -321,6 +321,7 @@ export class LeadFacade {
   constructor(
     private readonly leadReadPort: LeadReadPort,
     private readonly audit: AuditService,
+    private readonly companyReadPort: CompanyReadPort,
   ) {}
 
   async getLead(id: string) {
@@ -336,6 +337,7 @@ export class LeadFacade {
   }
 
   async createLead(input: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>, auditMeta: AuditMetadata) {
+    await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId)
     const lead = await this.leadReadPort.create(input)
     await auditSafely(this.audit, {
       actorId: auditMeta.actorId,
@@ -351,6 +353,12 @@ export class LeadFacade {
 
   async updateLead(id: string, input: Partial<Lead>, auditMeta: AuditMetadata) {
     const previous = await this.leadReadPort.findById(id)
+    if (previous) {
+      await assertCompanyAccess(this.companyReadPort, auditMeta.actor, previous.companyId)
+      if (input.companyId && input.companyId !== previous.companyId) {
+        await assertCompanyAccess(this.companyReadPort, auditMeta.actor, input.companyId)
+      }
+    }
     const lead = await this.leadReadPort.update(id, input)
 
     if (!lead) return null
@@ -370,6 +378,7 @@ export class LeadFacade {
 
   async deleteLead(id: string, auditMeta: AuditMetadata) {
     const previous = await this.leadReadPort.findById(id)
+    if (previous) await assertCompanyAccess(this.companyReadPort, auditMeta.actor, previous.companyId)
     const deleted = await this.leadReadPort.delete(id)
 
     if (deleted && previous) {

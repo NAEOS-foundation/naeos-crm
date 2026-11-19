@@ -233,7 +233,7 @@ describe('Phase 1 write flow', () => {
     }
     const companyStore = createCompanyPort()
     const contactFacade = new ContactFacade(contactStore, audit, companyStore)
-    const leadFacade = new LeadFacade(leadStore, audit)
+    const leadFacade = new LeadFacade(leadStore, audit, companyStore)
     const activityFacade = new ActivityFacade(activityStore, audit, companyStore)
     const taskFacade = new TaskFacade(taskStore, audit, companyStore)
 
