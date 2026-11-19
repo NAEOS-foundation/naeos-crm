@@ -37,7 +37,7 @@ function parseKeySet(activeKeyId: string, singlePrivateKey: string): Array<{ key
       }
       return { keyId, privateKey: privateKey.replace(/\\n/g, '\n') }
     })
-    if (new Set(keys.map((key) => key.keyId).size !== keys.length) {
+    if (new Set(keys.map((key) => key.keyId)).size !== keys.length) {
       throw new Error('Control Plane BFF key IDs must be unique')
     }
     if (!keys.some((key) => key.keyId === activeKeyId)) throw new Error('Active Control Plane BFF key is missing from key set')
