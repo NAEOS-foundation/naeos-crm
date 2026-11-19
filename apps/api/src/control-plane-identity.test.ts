@@ -50,6 +50,19 @@ describe('Control Plane BFF identity', () => {
     expect(jwt.decode(token, { complete: true })?.header.kid).toBe('crm-bff-test-1')
   })
 
+  it('supports P-256 ES256 service assertions', () => {
+    const pair = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    process.env.CONTROLPLANE_BFF_PRIVATE_KEY = pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+    const token = createControlPlaneAssertion('crm-user-es256')
+    const claims = jwt.verify(token, pair.publicKey.export({ type: 'spki', format: 'pem' }).toString(), {
+      algorithms: ['ES256'],
+      issuer: 'https://crm-api.example.test',
+      audience: 'naeos-control-plane',
+    }) as jwt.JwtPayload
+    expect(claims.sub).toBe('crm-user-es256')
+    expect(jwt.decode(token, { complete: true })?.header.alg).toBe('ES256')
+  })
+
   it('publishes only the derived public key as a JWKS signing key', async () => {
     const app = express()
     app.get('/.well-known/jwks.json', controlPlaneJWKSHandler)
