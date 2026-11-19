@@ -41,7 +41,7 @@ function formatTimestamp(value?: string): string {
 }
 
 export function ControlPlanePage() {
-  const overview = useFetch<{ data: ControlPlaneOverview }>('/api/v1/control-plane/overview')
+  const overview = useFetch<ControlPlaneOverview>('/api/v1/control-plane/overview')
   const [items, setItems] = useState<ControlPlaneDecision[]>([])
   const [nextCursor, setNextCursor] = useState<string | undefined>()
   const [decisionsLoading, setDecisionsLoading] = useState(true)
@@ -75,11 +75,11 @@ export function ControlPlanePage() {
     setLoadingMore(true)
     setDecisionsError(null)
     try {
-      const page = await api<{ data: ControlPlaneDecisionPage }>(
+      const page = await api<ControlPlaneDecisionPage>(
         `/api/v1/control-plane/decisions?limit=50&after=${encodeURIComponent(nextCursor)}`,
       )
       setItems((current) => [...current, ...page.items])
-      setNextCursor(page.data.next_cursor)
+      setNextCursor(page.next_cursor)
     } catch (error) {
       setDecisionsError(error instanceof ApiError ? error.message : 'Unable to load more decisions')
     } finally {
