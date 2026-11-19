@@ -1181,6 +1181,42 @@ describe('Phase 4 governance: policy rules and GO-Gate flow', () => {
     return { facade: new GoGateFacade(gate), requests, actions, sink }
   }
 
+  it('uses the atomic Policy Rule update port when the adapter supports it', async () => {
+    const audit = createAuditService()
+    const store = createPolicyRulePort()
+    const atomicUpdate = vi.fn(async (id: string, input: Partial<PolicyRule>, event: any) => {
+      const previous = await store.findById(id)
+      const updated = await store.update(id, input)
+      if (updated) {
+        event.previousState = previous
+        event.newState = updated
+      }
+      return updated
+    })
+    Object.assign(store, { updateWithAudit: atomicUpdate })
+    const facade = new PolicyRuleFacade(store, audit)
+    const rule = await store.create({
+      resource: 'test-resource',
+      action: 'TEST',
+      role: 'ADMIN',
+      effect: 'ALLOW',
+      priority: 1,
+      enabled: true,
+      policyVersion: 'test-v1',
+    })
+
+    const updated = await facade.updatePolicyRule(rule.id, { priority: 7 }, adminMeta)
+
+    expect(updated?.priority).toBe(7)
+    expect(atomicUpdate).toHaveBeenCalledOnce()
+    expect(atomicUpdate).toHaveBeenCalledWith(rule.id, { priority: 7 }, expect.objectContaining({
+      action: 'policy-rule.updated',
+      entityType: 'policy-rule',
+      entityId: rule.id,
+      result: 'SUCCESS',
+    }))
+  })
+
   it('creates and manages policy rules with audit events, admin only', async () => {
     const audit = createAuditService()
     const store = createPolicyRulePort()
