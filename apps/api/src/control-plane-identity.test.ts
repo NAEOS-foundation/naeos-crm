@@ -79,8 +79,14 @@ describe('Control Plane BFF identity', () => {
     expect(authorization.authorize({ id: 'member', email: 'member@example.test', roles: ['member'] }, 'control-plane', 'read').allow).toBe(false)
   })
 
-  it('rejects malformed actor identities and weak signing keys', () => {
+  it('rejects malformed actor identities', () => {
     expect(() => createControlPlaneAssertion('')).toThrow()
     expect(() => createControlPlaneAssertion(' actor-id ')).toThrow()
+  })
+
+  it('rejects RSA signing keys smaller than 2048 bits', () => {
+    const weakPair = generateKeyPairSync('rsa', { modulusLength: 1024 })
+    process.env.CONTROLPLANE_BFF_PRIVATE_KEY = weakPair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+    expect(() => createControlPlaneAssertion('crm-user-123')).toThrow(/2048 bits/)
   })
 })
