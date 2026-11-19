@@ -12,11 +12,21 @@ const devHeader = (roles: string[], id = 'test-user') => ({
 const admin = devHeader(['admin'])
 const member = devHeader(['member'])
 
+const originalAuthDisabled = process.env.AUTH_DISABLED
+
 beforeAll(() => {
   assertLocalTestDatabase()
+  // Most integration cases use the explicit x-naeos-dev-user test actor.
+  // Secure-mode cases temporarily switch this off via withAuthDisabled().
+  process.env.AUTH_DISABLED = 'true'
 })
 
 afterAll(async () => {
+  if (originalAuthDisabled === undefined) {
+    delete process.env.AUTH_DISABLED
+  } else {
+    process.env.AUTH_DISABLED = originalAuthDisabled
+  }
   await prisma.$disconnect()
 })
 
