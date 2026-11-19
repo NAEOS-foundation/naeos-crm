@@ -164,6 +164,9 @@ export class GoGateService {
     const current = await this.requests.findById(id)
     if (!current) throw notFound('GO_GATE_NOT_FOUND', 'Go-Gate request not found')
     if (current.status !== 'WAITING_FOR_GO') throw conflict(`Cannot reject request in status ${current.status}`)
+    if (current.requestedBy === approver.id) {
+      throw forbidden('The requester cannot reject their own Go-Gate request')
+    }
 
     const updated = await this.requests.transition(id, 'WAITING_FOR_GO', {
       status: 'REJECTED',
