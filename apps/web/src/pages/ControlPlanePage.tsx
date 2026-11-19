@@ -53,9 +53,9 @@ export function ControlPlanePage() {
     setDecisionsLoading(true)
     setDecisionsError(null)
     try {
-      const page = await api<{ data: ControlPlaneDecisionPage }>('/api/v1/control-plane/decisions?limit=50')
-      setItems(page.data.items)
-      setNextCursor(page.data.next_cursor)
+      const page = await api<ControlPlaneDecisionPage>('/api/v1/control-plane/decisions?limit=50')
+      setItems(page.items)
+      setNextCursor(page.next_cursor)
     } catch (error) {
       const message = error instanceof ApiError ? error.message : 'Unable to load decision history'
       setDecisionsError(message)
@@ -78,7 +78,7 @@ export function ControlPlanePage() {
       const page = await api<{ data: ControlPlaneDecisionPage }>(
         `/api/v1/control-plane/decisions?limit=50&after=${encodeURIComponent(nextCursor)}`,
       )
-      setItems((current) => [...current, ...page.data.items])
+      setItems((current) => [...current, ...page.items])
       setNextCursor(page.data.next_cursor)
     } catch (error) {
       setDecisionsError(error instanceof ApiError ? error.message : 'Unable to load more decisions')
@@ -97,7 +97,7 @@ export function ControlPlanePage() {
     return <ErrorState message={overview.error ?? 'Control Plane overview unavailable'} onRetry={refresh} />
   }
 
-  const summary = overview.data.data
+  const summary = overview.data
 
   return (
     <div className="control-plane-page">
