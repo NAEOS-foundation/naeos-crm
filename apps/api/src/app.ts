@@ -6,6 +6,7 @@ import { authRouter } from './auth-routes'
 import { outboxObservabilityRouter } from './outbox-observability'
 import { authMiddleware, errorHandler, requestIdMiddleware, securityHeadersMiddleware, rateLimitMiddleware } from './middleware'
 import { prisma } from './prisma-ports'
+import { controlPlaneJWKSHandler } from './control-plane-identity'
 
 export function createApp() {
   const app = express()
@@ -35,6 +36,8 @@ export function createApp() {
     },
   }))
   app.use(express.json({ limit: '1mb' }))
+
+  app.get('/.well-known/jwks.json', controlPlaneJWKSHandler)
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' })

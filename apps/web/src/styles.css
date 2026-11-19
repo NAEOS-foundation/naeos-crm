@@ -680,3 +680,137 @@ textarea:focus-visible {
     transition: none;
   }
 }
+
+
+/* Internal Control Plane operations view */
+
+.control-plane-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem 1.125rem;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  border-radius: 8px;
+  background: linear-gradient(115deg, rgba(8, 47, 73, 0.42), rgba(17, 26, 46, 0.92) 58%);
+}
+
+.control-plane-intro p,
+.control-plane-section-header p {
+  margin: 0.25rem 0 0;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.control-plane-eyebrow {
+  color: #67e8f9;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.control-plane-readonly {
+  flex-shrink: 0;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid rgba(34, 211, 238, 0.35);
+  border-radius: 999px;
+  color: #67e8f9;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.control-plane-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  background: #111a2e;
+}
+
+.control-plane-meta > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.control-plane-meta strong {
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.control-plane-allow {
+  color: #4ade80;
+}
+
+.control-plane-deny {
+  color: #f87171;
+}
+
+.control-plane-pending {
+  color: #fbbf24;
+}
+
+.control-plane-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1.75rem 0 0.75rem;
+}
+
+.control-plane-section-header h2 {
+  margin: 0;
+}
+
+.control-plane-count {
+  color: #94a3b8;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.control-plane-sequence {
+  color: #67e8f9;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.control-plane-agent {
+  max-width: 220px;
+  overflow-wrap: anywhere;
+}
+
+.control-plane-reason {
+  max-width: 320px;
+  overflow-wrap: anywhere;
+  color: #94a3b8;
+}
+
+.control-plane-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 1rem 0;
+}
+
+@media (max-width: 600px) {
+  .control-plane-intro {
+    align-items: flex-start;
+  }
+
+  .control-plane-section-header {
+    align-items: flex-start;
+  }
+
+  .control-plane-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+}
