@@ -1364,7 +1364,11 @@ router.post('/api/v1/go-gate/:id/execute', asyncHandler(async (req, res) => {
 
 async function proxyControlPlaneRead(req: Request, res: Response, path: string, query?: URLSearchParams) {
   const actor = req.actor
-  if (!actor || !(await requireAuth(req, res, 'control-plane', 'read'))) return
+  if (!actor) {
+    res.status(401).json(buildErrorResponse('UNAUTHORIZED', 'Authentication required', req.requestId))
+    return
+  }
+  if (!(await requireAuth(req, res, 'control-plane', 'read'))) return
 
   const configuredBase = process.env.CONTROLPLANE_API_URL?.trim()
   if (!configuredBase) {
