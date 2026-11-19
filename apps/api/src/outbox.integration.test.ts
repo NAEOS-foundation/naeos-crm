@@ -10,6 +10,7 @@ import {
 } from './prisma-ports'
 import { OutboxDispatcher } from './outbox'
 import { createEvidenceReceiptOutboxHandler } from './outbox-worker'
+import { assertLocalTestDatabase } from './test-database-guard'
 
 async function dispatchUntilSucceeded(dispatcher: OutboxDispatcher, eventId: string, maxRuns = 100): Promise<void> {
   for (let i = 0; i < maxRuns; i++) {
@@ -29,25 +30,18 @@ describe('Outbox V1 database integration', () => {
   const createdRequestIds: string[] = []
   const createdReceiptIds: string[] = []
 
-  beforeAll(async () => {
-    const staleRequests = await prisma.goGateRequest.findMany({
-      where: { target: 'integration-test' },
-      select: { id: true },
-    })
-    const staleReceipts = await prisma.evidenceReceipt.findMany({
-      where: { goGateRequestId: { in: staleRequests.map(({ id }) => id) } },
-      select: { id: true },
-    })
-    await prisma.outboxEvent.deleteMany({ where: { aggregateId: { in: staleReceipts.map(({ id }) => id) } } })
-    await prisma.evidenceReceipt.deleteMany({ where: { id: { in: staleReceipts.map(({ id }) => id) } } })
-    await prisma.goGateRequest.deleteMany({ where: { id: { in: staleRequests.map(({ id }) => id) } } })
+  beforeAll(() => {
+    assertLocalTestDatabase()
   })
 
   afterAll(async () => {
-    await prisma.outboxEvent.deleteMany({ where: { aggregateId: { in: createdReceiptIds } } })
-    await prisma.evidenceReceipt.deleteMany({ where: { id: { in: createdReceiptIds } } })
-    await prisma.goGateRequest.deleteMany({ where: { id: { in: createdRequestIds } } })
-    await prisma.$disconnect()
+    try {
+      await prisma.outboxEvent.deleteMany({ where: { aggregateId: { in: createdReceiptIds } } })
+      await prisma.evidenceReceipt.deleteMany({ where: { id: { in: createdReceiptIds } } })
+      await prisma.goGateRequest.deleteMany({ where: { id: { in: createdRequestIds } } })
+    } finally {
+      await prisma.$disconnect()
+    }
   })
 
   it('atomically enqueues a receipt event and worker processes it to SUCCEEDED', async () => {
