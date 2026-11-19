@@ -23,6 +23,7 @@ import { InvestorsPage } from './pages/InvestorsPage'
 import { UseCasesPage } from './pages/UseCasesPage'
 import { GoGatePage } from './pages/GoGatePage'
 import { PoliciesPage } from './pages/PoliciesPage'
+import { ControlPlanePage } from './pages/ControlPlanePage'
 
 interface NavItem {
   to: string
@@ -79,6 +80,12 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/go-gate', label: 'GO-Gate', resource: 'go-gate', action: 'read' },
       { to: '/policy', label: 'Policy', resource: 'policy', action: 'read' },
       { to: '/audit', label: 'Audit', resource: 'audit', action: 'read' },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { to: '/control-plane', label: 'Control Plane', resource: 'control-plane', action: 'read' },
     ],
   },
   {
@@ -224,6 +231,14 @@ export function App() {
             element={
               <RequirePermission resource="user" action="read">
                 <UsersPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/control-plane"
+            element={
+              <RequirePermission resource="control-plane" action="read">
+                <ControlPlanePage />
               </RequirePermission>
             }
           />
