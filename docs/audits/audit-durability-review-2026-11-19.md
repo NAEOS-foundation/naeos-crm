@@ -105,3 +105,29 @@ This review does not change application code, schema, database, secrets, product
 
 ### Gate before code implementation
 A concrete transaction-scoped audit append API and Prisma test harness must be confirmed. If current tests do not provide database integration isolation/failure injection, add a dedicated test harness (staging or ephemeral database only) before modifying the runtime path. No production/staging database operations are part of this review.
+
+
+## Test harness verification (2026-11-19)
+
+### CI database isolation
+
+- `.github/workflows/ci.yml` provisions a PostgreSQL 16 Alpine service container for the CI build job, with database `naeos_crm` and credentials scoped to the GitHub runner service.
+- CI runs `npm ci`, Prisma generation, migrations, seed, workspace build, and tests with `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/naeos_crm`. This connection is explicitly local to the workflow runner; it is not a Supabase production/staging URL.
+- The existing `apps/api/src/outbox.integration.test.ts` is an actual database integration test. It uses generated unique test suffixes and cleanup targeted to test records. It demonstrates an existing integration-test pattern.
+- `apps/api/vitest.config.ts` defines a 20-second test timeout. The API package test script runs Vitest across `src`.
+
+### Harness conclusion and safety boundary
+
+**The repository already has a CI-only Postgres integration harness; a new database provisioning framework is not required for the initial prototype.** The harness is suitable for integration tests that are strictly scoped to unique test records and do not run destructive cleanup against shared or external databases. However, there is no confirmed existing failure-injection mechanism for audit insert failures, so the atomic-audit prototype must add a controlled test seam (e.g., transaction-scoped audit append callback/test adapter) or use a deliberate invalid audit insert inside a transaction to prove rollback. Do not add a production-configurable failure flag.
+
+### Narrow prototype decision
+
+Proceed with a draft implementation PR only after designing the transaction boundary explicitly. Policy Rule update is the first target because it is admin-only and affects authorization policy. The implementation should:
+
+1. Keep authorization check before transaction.
+2. Read previous rule, update it, and append its audit event inside one Prisma interactive transaction.
+3. Reuse the audit-chain advisory lock, canonical payload, sequence, and SHA-256 hashing logic, but operate on the same transaction client (no nested transaction).
+4. Verify both success and rollback cases in CI integration tests with uniquely tagged test data and cleanup limited to those IDs.
+5. Keep the change draft and do not merge/deploy or touch Supabase environments.
+
+This test-harness assessment is repository evidence only. No test was run locally in this review; CI is the verified execution environment.
