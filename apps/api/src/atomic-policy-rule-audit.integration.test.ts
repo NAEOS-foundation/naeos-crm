@@ -76,7 +76,7 @@ describe.skipIf(!enabled)('Atomic Policy Rule audit integration', () => {
   it('rolls back the Policy Rule update when audit insert fails', async () => {
     if (!ruleId) throw new Error('Expected test Policy Rule from success test')
     const before = await port.findById(ruleId)
-    const successfulAudit = await prisma.auditEvent.findFirst({ where: { entityId: ruleId, requestId: suffix }, select: { id: true } })
+    const successfulAudit = await prisma.auditEvent.findFirst({ where: { entityId: ruleId, requestId: suffix, id: { startsWith: `atomic-audit-success-` } }, select: { id: true } })
     if (!successfulAudit) throw new Error('Expected successful audit event from preceding test')
 
     await expect(
