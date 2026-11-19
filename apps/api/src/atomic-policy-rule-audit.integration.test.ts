@@ -50,11 +50,11 @@ describe.skipIf(!enabled)('Atomic Policy Rule audit integration', () => {
   it('rolls back the Policy Rule update when audit insert fails', async () => {
     if (!ruleId) throw new Error('Expected test Policy Rule from success test')
     const before = await port.findById(ruleId)
-    const existingAudit = await prisma.auditEvent.findFirst({ orderBy: { sequence: 'asc' }, select: { id: true } })
-    if (!existingAudit) throw new Error('CI seed must provide at least one audit row to exercise duplicate-ID failure')
+    const successfulAudit = await prisma.auditEvent.findFirst({ where: { entityId: ruleId, requestId: suffix }, select: { id: true } })
+    if (!successfulAudit) throw new Error('Expected successful audit event from preceding test')
 
     await expect(
-      port.updateWithAudit(ruleId, { priority: 99 }, event(existingAudit.id, 'policy-rule.updated', ruleId)),
+      port.updateWithAudit(ruleId, { priority: 99 }, event(successfulAudit.id, 'policy-rule.updated', ruleId)),
     ).rejects.toBeTruthy()
 
     const after = await port.findById(ruleId)
