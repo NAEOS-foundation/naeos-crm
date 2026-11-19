@@ -30,6 +30,15 @@ Configure these values only in the private environment of the CRM API service:
 - `CONTROLPLANE_BFF_PRIVATE_KEY`: PEM-encoded RSA private key (at least 2048 bits) or P-256 EC private key. Store it as a secret; never commit it.
 - `CONTROLPLANE_API_URL`: HTTPS base URL of the Control Plane API. HTTP is accepted only for localhost during non-production development.
 
+Generate an RSA key pair in a trusted operator environment (do not run this in a repository checkout):
+
+```sh
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out crm-control-plane-bff-private.pem
+openssl pkey -in crm-control-plane-bff-private.pem -pubout -out crm-control-plane-bff-public.pem
+```
+
+Store the private PEM in the CRM API secret manager as `CONTROLPLANE_BFF_PRIVATE_KEY`. The application derives the public JWK from that private key; the separate public PEM is for operator-side verification only. Never commit either key file.
+
 The JWKS route returns 503 when signing is not configured. BFF requests also fail closed when any required configuration is missing.
 
 ## Control Plane environment
