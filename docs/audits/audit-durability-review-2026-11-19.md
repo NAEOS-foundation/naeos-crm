@@ -78,3 +78,30 @@ This review does not change application code, schema, database, secrets, product
 - Go-Gate request transitions use conditional status updates, which help protect against stale state transitions. However, transition and audit append remain separate writes; provider invocation occurs after the EXECUTING transition and is not itself atomic with the database.
 
 **Design implication:** Phase B should first prototype a transaction-scoped audit append with a shared Prisma transaction client and tests, then apply it to a narrow critical mutation (e.g., policy-rule update) only after rollback semantics are demonstrated. Phase C should reuse the established Outbox primitives for durable execution orchestration rather than treating an outbox row as a substitute for the audit hash-chain.
+
+## Phase B prototype design review (Policy Rule)
+
+### Verified architecture constraints
+- The Policy Rule facade is currently injected with `PolicyRuleReadPort` and `AuditService`; it has no transaction abstraction.
+- The Prisma policy-rule port performs create/update/delete through the global `prisma` client.
+- `PrismaAuditSink.append()` owns its own interactive transaction, obtains the audit-chain advisory lock, computes the next sequence/hash, and inserts the audit event.
+- `AuditService.record()` generates the event ID/timestamp and awaits the sink append.
+- The accepted ADR-008 defines policy rule management as admin-only and auditable. ADR-003 calls for durable append-oriented records of consequential changes.
+
+### Safe implementation options considered
+
+1. **Shared Prisma transaction client (preferred for DB-backed policy CRUD):** define a transaction callback/use-case boundary and expose a transaction-scoped audit append that accepts the Prisma transaction client. Policy mutation and audit row insertion use the same client and commit/rollback together. Preserve the advisory lock and full canonical hash payload logic. Avoid nested independent transactions.
+2. **Outbox-only audit approach (not equivalent):** a transactional outbox can guarantee mutation plus event intent, but audit-chain insertion occurs asynchronously and is not immediately part of the chain. This would require explicit pending audit status, reconciliation, and integrity-report semantics. Do not silently substitute this for synchronous audit append.
+3. **Throw-after-mutation (rejected):** if mutation already committed, an audit error cannot undo it. Returning an error after persisted mutation is misleading and leaves the same integrity gap.
+
+### Prototype scope and test matrix
+- Start with Policy Rule update (existing rule only), then create/delete after transaction API is validated.
+- Test success: updated policy rule and audit row both committed, correct event action and entity ID.
+- Test audit insert failure: policy update rolls back and no audit row is committed.
+- Test transaction failure: neither update nor audit record remains.
+- Test concurrent updates: advisory-lock chain sequence remains unique and predecessor linkage valid.
+- Test failure propagation through facade/API without leaking raw database error details.
+- Test admin-only authorization remains enforced.
+
+### Gate before code implementation
+A concrete transaction-scoped audit append API and Prisma test harness must be confirmed. If current tests do not provide database integration isolation/failure injection, add a dedicated test harness (staging or ephemeral database only) before modifying the runtime path. No production/staging database operations are part of this review.
