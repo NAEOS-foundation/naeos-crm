@@ -62,14 +62,25 @@ Do not point the Control Plane at a different or user-controlled JWKS endpoint. 
 
 The BFF does not expose policy mutation, approvals, execution, deployment, database administration, or rollback operations.
 
-## Key lifecycle
+## Key lifecycle and rotation overlap
 
-- Generate the private key outside the repository and inject it through the CRM API secret manager.
-- Publish only the public key through JWKS.
-- Use a new unique `kid` for rotation. The current v1 JWKS endpoint publishes only the active key and does not support overlapping keys.
-- Perform rotation in a coordinated maintenance window: deploy the new private key and `kid`, then allow the Control Plane's five-minute JWKS cache to expire before relying on the new signer. New assertions may be rejected during this cache-refresh window.
-- Existing assertions expire after 60 seconds. Treat rotation as a short, planned read-only integration interruption until both services have converged.
-- Never reuse the CRM session `AUTH_SECRET` as a service signing key.
+- Generate private keys outside the repository and inject them through the CRM API secret manager.
+- Publish only public keys through JWKS.
+- Legacy single-key configuration remains supported using `CONTROLPLANE_BFF_KEY_ID` and `CONTROLPLANE_BFF_PRIVATE_KEY`.
+- For rotation, set `CONTROLPLANE_BFF_KEYS_JSON` to a JSON array of up to five entries, each with `key_id` and `private_key`. Keep the active `CONTROLPLANE_BFF_KEY_ID` equal to one entry in that array. The active key signs assertions; all configured keys are published as public JWKs.
+- Never reuse a `kid`; key IDs must be unique. Key entries must be RSA >= 2048 bits or P-256 EC. The configuration fails closed if JSON is invalid, key IDs duplicate, or the active key is absent.
+- During rotation, publish both old and new keys, then switch the active key ID and private key within the same configuration. The Control Plane's JWKS cache is five minutes, so allow cache refresh before depending on the new key.
+- Keep the old public key in the overlap set for at least the JWKS cache lifetime plus the 60-second assertion lifetime and a safety margin. Remove it only after Control Plane verifiers have refreshed and old assertions have expired.
+- Rotation requires coordinated configuration changes and may cause a brief read-only integration interruption. No key material belongs in Git, logs, or documentation.
+
+Example secret-manager JSON shape (replace values with actual secret-managed PEM material; do not commit real keys):
+
+```json
+[
+  { "key_id": "crm-bff-2026-01", "private_key": "<old-private-key-pem>" },
+  { "key_id": "crm-bff-2026-02", "private_key": "<new-private-key-pem>" }
+]
+```
 
 ## Deployment boundary
 
