@@ -148,7 +148,7 @@ export function ControlPlanePage() {
           <span className="stat-value control-plane-deny">{summary.deny_count.toLocaleString()}</span>
         </div>
         <div className="stat-card">
-          <span className="stat-label">Pending</span>
+          <span className="stat-label">Requires approval</span>
           <span className="stat-value control-plane-pending">{summary.pending_count.toLocaleString()}</span>
         </div>
       </div>
