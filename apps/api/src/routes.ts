@@ -61,6 +61,7 @@ import {
 import { ApiAuthGuard } from './auth'
 import { asyncHandler } from './middleware'
 import { createControlPlaneAssertion } from './control-plane-identity'
+import { isJsonContentType, readBoundedResponseBody } from './control-plane-upstream'
 import { EmailAdapter, GitHubAdapter } from './integration-adapters'
 import { NAEOSPolicyAdapter } from './policy-adapter'
 import { analyzeEngineeringRepository, IntelligenceUnavailableError } from './intelligence-client'
@@ -1418,10 +1419,10 @@ async function proxyControlPlaneRead(req: Request, res: Response, path: string, 
       return
     }
 
-    const body = await upstream.text()
-    if (Buffer.byteLength(body, 'utf8') > 1_048_576) {
-      throw new Error('Control Plane response exceeded the maximum size')
+    if (!isJsonContentType(upstream.headers.get('content-type'))) {
+      throw new Error('Control Plane returned a non-JSON content type')
     }
+    const body = await readBoundedResponseBody(upstream.body)
     let payload: unknown
     try {
       payload = JSON.parse(body)
