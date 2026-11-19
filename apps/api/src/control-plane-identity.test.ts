@@ -72,7 +72,14 @@ describe('Control Plane BFF identity', () => {
     expect(response.headers['cache-control']).toBe('no-store')
   })
 
-  it('grants the dedicated permission only to administrators by default', () => {\n    const authorization = new DefaultAuthorizationService()\n    expect(authorization.authorize({ id: 'admin', email: 'admin@example.test', roles: ['admin'] }, 'control-plane', 'read').allow).toBe(true)\n    expect(authorization.authorize({ id: 'manager', email: 'manager@example.test', roles: ['manager'] }, 'control-plane', 'read').allow).toBe(false)\n    expect(authorization.authorize({ id: 'member', email: 'member@example.test', roles: ['member'] }, 'control-plane', 'read').allow).toBe(false)\n  })\n\n  it('rejects malformed actor identities and weak signing keys', () => {
+  it('grants the dedicated permission only to administrators by default', () => {
+    const authorization = new DefaultAuthorizationService()
+    expect(authorization.authorize({ id: 'admin', email: 'admin@example.test', roles: ['admin'] }, 'control-plane', 'read').allow).toBe(true)
+    expect(authorization.authorize({ id: 'manager', email: 'manager@example.test', roles: ['manager'] }, 'control-plane', 'read').allow).toBe(false)
+    expect(authorization.authorize({ id: 'member', email: 'member@example.test', roles: ['member'] }, 'control-plane', 'read').allow).toBe(false)
+  })
+
+  it('rejects malformed actor identities and weak signing keys', () => {
     expect(() => createControlPlaneAssertion('')).toThrow()
     expect(() => createControlPlaneAssertion(' actor-id ')).toThrow()
   })
