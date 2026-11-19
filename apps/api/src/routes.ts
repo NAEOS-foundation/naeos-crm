@@ -1474,14 +1474,14 @@ router.get('/api/v1/control-plane/decisions', asyncHandler(async (req, res) => {
   const limitRaw = req.query.limit
   const afterRaw = req.query.after
   if (limitRaw !== undefined) {
-    if (typeof limitRaw !== 'string' || !/^\\d+$/.test(limitRaw) || Number(limitRaw) < 1 || Number(limitRaw) > 100) {
+    if (typeof limitRaw !== 'string' || !/^\d+$/.test(limitRaw) || Number(limitRaw) < 1 || Number(limitRaw) > 100) {
       res.status(400).json(buildErrorResponse('VALIDATION_ERROR', 'limit must be an integer from 1 to 100', req.requestId))
       return
     }
     query.set('limit', limitRaw)
   }
   if (afterRaw !== undefined) {
-    if (typeof afterRaw !== 'string' || !/^\\d+$/.test(afterRaw) || !Number.isSafeInteger(Number(afterRaw))) {
+    if (typeof afterRaw !== 'string' || !/^\d+$/.test(afterRaw) || !Number.isSafeInteger(Number(afterRaw))) {
       res.status(400).json(buildErrorResponse('VALIDATION_ERROR', 'after must be a non-negative integer cursor', req.requestId))
       return
     }
