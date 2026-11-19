@@ -69,3 +69,12 @@ In `apps/api/src/service-layer.ts`, the helper `auditSafely()` catches audit wri
 ## Scope exclusions
 
 This review does not change application code, schema, database, secrets, production, staging, deployment, or PR merge state. It is a design/finding record only.
+
+## Additional repository evidence: transactional Outbox
+
+- The existing `PrismaEvidenceReceiptWritePort.create()` writes an Evidence Receipt and its Outbox Event in the same Prisma transaction. This is a verified pattern worth extending selectively.
+- The Outbox port already supports event enqueueing and worker claim/lease state transitions. This reduces the need to invent a second delivery queue.
+- The audit sink currently opens its own transaction, so it cannot be directly composed into an existing mutation transaction through the current interface. A transaction-scoped audit append adapter or shared Prisma transaction boundary would be required.
+- Go-Gate request transitions use conditional status updates, which help protect against stale state transitions. However, transition and audit append remain separate writes; provider invocation occurs after the EXECUTING transition and is not itself atomic with the database.
+
+**Design implication:** Phase B should first prototype a transaction-scoped audit append with a shared Prisma transaction client and tests, then apply it to a narrow critical mutation (e.g., policy-rule update) only after rollback semantics are demonstrated. Phase C should reuse the established Outbox primitives for durable execution orchestration rather than treating an outbox row as a substitute for the audit hash-chain.
