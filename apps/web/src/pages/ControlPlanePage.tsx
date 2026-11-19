@@ -121,7 +121,7 @@ export function ControlPlanePage() {
         </div>
         <div>
           <span className="stat-label">Ledger integrity</span>
-          <StatusBadge status={summary.status} />
+          <StatusBadge status={summary.status.toUpperCase()} />
         </div>
         <div>
           <span className="stat-label">Last sequence</span>
