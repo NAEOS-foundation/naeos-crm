@@ -47,6 +47,32 @@ describe.skipIf(!enabled)('Atomic Policy Rule audit integration', () => {
     expect(persisted?.eventHash).toMatch(/^[a-f0-9]{64}$/)
   })
 
+  it('serializes concurrent atomic updates into a valid audit-chain order', async () => {
+    if (!ruleId) throw new Error('Expected test Policy Rule from prior integration test')
+    const events = [
+      event(`atomic-audit-concurrent-a-${suffix}`, 'policy-rule.updated', ruleId),
+      event(`atomic-audit-concurrent-b-${suffix}`, 'policy-rule.updated', ruleId),
+    ]
+    const updates = await Promise.all([
+      port.updateWithAudit(ruleId, { priority: 51 }, events[0]),
+      port.updateWithAudit(ruleId, { priority: 52 }, events[1]),
+    ])
+    expect(updates.every(Boolean)).toBe(true)
+
+    const records = await prisma.auditEvent.findMany({
+      where: { id: { in: events.map(({ id }) => id) } },
+      orderBy: { sequence: 'asc' },
+    })
+    expect(records).toHaveLength(2)
+    expect(records[0].sequence).not.toBe(records[1].sequence)
+    for (const record of records) {
+      const predecessor = record.sequence > 1
+        ? await prisma.auditEvent.findFirst({ where: { sequence: record.sequence - 1 }, select: { eventHash: true } })
+        : null
+      expect(record.previousEventHash).toBe(predecessor?.eventHash ?? null)
+    }
+  })
+
   it('rolls back the Policy Rule update when audit insert fails', async () => {
     if (!ruleId) throw new Error('Expected test Policy Rule from success test')
     const before = await port.findById(ruleId)
