@@ -299,18 +299,19 @@ export class PrismaCompanyReadPort implements CompanyReadPort {
 
   async delete(id: string): Promise<boolean> {
     try {
-      const [contacts, leads, activities, tasks] = await Promise.all([
+      const [contacts, leads, activities, tasks, opportunities] = await Promise.all([
         prisma.contact.count({ where: { companyId: id } }),
         prisma.lead.count({ where: { companyId: id } }),
         prisma.activity.count({ where: { companyId: id } }),
         prisma.task.count({ where: { companyId: id } }),
+        prisma.opportunity.count({ where: { companyId: id } }),
       ])
-      const related = contacts + leads + activities + tasks
+      const related = contacts + leads + activities + tasks + opportunities
       if (related > 0) {
         throw new HttpError(
           409,
           'COMPANY_HAS_RELATIONS',
-          `Cannot delete: company has ${related} related contact, lead, activity, or task record(s). Move or delete them first.`,
+          `Cannot delete: company has ${related} related contact, lead, activity, task, or opportunity record(s). Move or delete them first.`,
         )
       }
       await prisma.company.delete({ where: { id } })
