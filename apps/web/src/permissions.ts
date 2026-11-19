@@ -56,6 +56,7 @@ const PERMISSIONS: Record<string, string[]> = {
     'policy:write',
     'policy:delete',
     'audit:read',
+    'control-plane:read',
     'dashboard:read',
   ],
   manager: [
