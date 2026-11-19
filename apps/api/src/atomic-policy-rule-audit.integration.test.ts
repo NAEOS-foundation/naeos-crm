@@ -85,7 +85,7 @@ describe.skipIf(!enabled)('Atomic Policy Rule audit integration', () => {
 
     const after = await port.findById(ruleId)
     expect(after?.priority).toBe(before?.priority)
-    const matchingAudit = await prisma.auditEvent.findMany({ where: { entityId: ruleId, requestId: suffix } })
+    const matchingAudit = await prisma.auditEvent.findMany({ where: { id: successfulAudit.id, entityId: ruleId } })
     expect(matchingAudit).toHaveLength(1)
     expect(matchingAudit[0].id).toContain('atomic-audit-success-')
   })
