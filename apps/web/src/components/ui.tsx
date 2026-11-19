@@ -17,6 +17,7 @@ const STATUS_CLASS: Record<string, string> = {
   ALLOW: 'status-active',
   EXECUTING: 'status-active',
   PENDING: 'status-pending',
+  REQUIRE_APPROVAL: 'status-pending',
   NEW: 'status-pending',
   IN_PROGRESS: 'status-pending',
   PROPOSAL: 'status-pending',
