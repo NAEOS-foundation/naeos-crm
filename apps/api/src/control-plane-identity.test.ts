@@ -10,7 +10,7 @@ const envKeys = [
   'CONTROLPLANE_BFF_ISSUER',
   'CONTROLPLANE_BFF_AUDIENCE',
   'CONTROLPLANE_BFF_KEY_ID',
-  'CONTROLPLANE_BFF_PRIVATE_KEY',
+  'CONTROLPLANE_BFF_PRIVATE_KEY',\n  'CONTROLPLANE_BFF_KEYS_JSON',
 ] as const
 
 const previous = new Map<string, string | undefined>()
